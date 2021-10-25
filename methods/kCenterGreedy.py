@@ -4,20 +4,20 @@ import numpy as np
 from torch.utils.data import Subset
 from sklearn.metrics import pairwise_distances
 
+
 # Acknowledgement to
 # https://github.com/google/active-learning
 
 
-
-
 class kCenterGreedy(CoresetMethod):
-    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, already_selected=[], metric="euclidean", mapping=lambda x:torch.flatten(x, start_dim=1)):
+    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, already_selected=[], metric="euclidean",
+                 mapping=lambda x: torch.flatten(x, start_dim=1)):
         super().__init__(dst_train, args, fraction, random_seed)
         self.already_selected = already_selected
         self.metric = metric
         self.mapping = mapping
-        self.n_obs = len(dst_train)
-        self.coreset_size = round(self.n_obs*fraction)
+        self.n_train = len(dst_train)
+        self.coreset_size = round(self.n_train * fraction)
         self.min_distances = None
 
     def update_distances(self, cluster_centers, only_new=True, reset_dist=False):
@@ -52,7 +52,7 @@ class kCenterGreedy(CoresetMethod):
         for _ in range(self.coreset_size):
             if self.already_selected is None:
                 # Initialize centers with a randomly selected datapoint
-                ind = np.random.choice(np.arange(self.n_obs))
+                ind = np.random.choice(np.arange(self.n_train))
             else:
                 ind = np.argmax(self.min_distances)
             # New examples should not be in already selected since those points
@@ -67,5 +67,3 @@ class kCenterGreedy(CoresetMethod):
         self.already_selected = already_selected
 
         return Subset(self.dst_train, new_batch), new_batch
-
-

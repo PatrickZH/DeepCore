@@ -1,4 +1,3 @@
-
 class CoresetMethod(object):
     def __init__(self, dst_train, args, fraction=0.5, random_seed=None, **kwargs):
         if fraction <= 0.0 or fraction > 1.0:
@@ -15,5 +14,3 @@ class CoresetMethod(object):
 
     def save(self, **kwargs):
         pass
-
-

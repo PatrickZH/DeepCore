@@ -8,6 +8,9 @@ from sklearn.metrics import pairwise_distances
 # Acknowledgement to
 # https://github.com/google/active-learning
 
+# 另一种方法：
+# https://github.com/stanford-futuredata/selection-via-proxy/blob/master/svp/common/selection/k_center_greedy.py
+# 后续测试选用较好的一种
 
 class kCenterGreedy(CoresetMethod):
     def __init__(self, dst_train, args, fraction=0.5, random_seed=None, already_selected=[], metric="euclidean",

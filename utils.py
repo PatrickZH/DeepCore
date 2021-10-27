@@ -1,6 +1,7 @@
 import time, torch
 
-def train(train_loader, network, criterion, optimizer, epoch, args):
+
+def train(train_loader, network, criterion, optimizer, scheduler, epoch, args):
     """Train for one epoch on the training set"""
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -27,7 +28,7 @@ def train(train_loader, network, criterion, optimizer, epoch, args):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        # scheduler.step()
+        scheduler.step()
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -40,6 +41,7 @@ def train(train_loader, network, criterion, optimizer, epoch, args):
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
                 epoch, i, len(train_loader), batch_time=batch_time,
                 loss=losses, top1=top1))
+
 
 def test(test_loader, network, criterion, args):
     batch_time = AverageMeter()
@@ -79,8 +81,10 @@ def test(test_loader, network, criterion, args):
 
     print(' * Prec@1 {top1.avg:.3f}'.format(top1=top1))
 
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self, name, fmt=':f'):
         self.name = name
         self.fmt = fmt
@@ -101,6 +105,7 @@ class AverageMeter(object):
     def __str__(self):
         fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
         return fmtstr.format(**self.__dict__)
+
 
 def accuracy(output, target, topk=(1,)):
     """Computes the accuracy over the k top predictions for the specified values of k"""

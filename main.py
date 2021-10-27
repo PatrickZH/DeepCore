@@ -4,9 +4,10 @@ import torch.nn as nn
 import argparse
 import nets, datasets
 from utils import train, test
+from torchvision import models
+
 
 def main():
-
     parser = argparse.ArgumentParser(description='Parameter Processing')
     parser.add_argument('--dataset', type=str, default='CIFAR10', help='dataset')
     parser.add_argument('--model', type=str, default='ConvNet', help='model')
@@ -17,21 +18,23 @@ def main():
     parser.add_argument('--num_eval', type=int, default=10, help='the number of evaluating randomly initialized models')
     parser.add_argument('--epoch_eval_train', type=int, default=300, help='epochs to train a model with synthetic data')
     parser.add_argument('--iteration', type=int, default=1000, help='training iterations')
-    parser.add_argument('--lr', type=float, default=0.01, help='learning rate for updating network parameters')
+    parser.add_argument('--lr', type=float, default=0.1, help='learning rate for updating network parameters')
     parser.add_argument('--batch', type=int, default=256, help='batch size for real data')
     parser.add_argument('--data_path', type=str, default='data', help='dataset path')
     parser.add_argument('--save_path', type=str, default='result', help='path to save results')
     parser.add_argument('--gpu', default=None, nargs="+", type=int, help='GPU id to use.')
-    parser.add_argument('--momentum', default=0.5, type=float, metavar='M',
-                        help='momentum')
-    parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
-                        metavar='W', help='weight decay (default: 1e-4)',
+    parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                        help='momentum (default: 0.9)')
+    parser.add_argument('--wd', '--weight-decay', default=5e-4, type=float,
+                        metavar='W', help='weight decay (default: 5e-4)',
                         dest='weight_decay')
     parser.add_argument('-b', '--batch-size', default=256, type=int,
                         metavar='N',
                         help='mini-batch size (default: 256)')
     parser.add_argument('--print-freq', '-p', default=10, type=int,
                         help='print frequency (default: 10)')
+    parser.add_argument('--optimizer', default="SGD", help='optimizer to use, e.g. SGD, Adam')
+    parser.add_argument("--nesterov", default=True, type=bool, help="if set nesterov")
 
     args = parser.parse_args()
     args.if_selection = True if args.if_selection == 'True' else False
@@ -43,36 +46,50 @@ def main():
     if not os.path.exists(args.data_path):
         os.mkdir(args.data_path)
 
+    channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test = datasets.__dict__[args.dataset] \
+        (args.data_path)
+    args.channel, args.im_size, args.num_classes, args.class_names = channel, im_size, num_classes, class_names
+
     for exp in range(args.num_exp):
         print('\n================== Exp %d ==================\n ' % exp)
 
-        channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test = datasets.__dict__[args.dataset]\
-            (args.data_path)
         torch.random.manual_seed(int(time.time() * 1000) % 100000)
-        network = nets.__dict__[args.model](channel, num_classes).to(args.device)
+
+        if args.dataset == "ImageNet":
+            # Use torchvision models
+            pass  ########
+        else:
+            network = nets.__dict__[args.model](channel, num_classes).to(args.device)
 
         if args.device == "cpu":
             print("Using CPU.")
         elif args.gpu is not None:
             torch.cuda.set_device(args.gpu)
             network = network.cuda(args.gpu)
-        elif torch.cuda.device_count()>1:
+        elif torch.cuda.device_count() > 1:
             network = nn.DataParallel(network).cuda()
 
         criterion = nn.CrossEntropyLoss().to(args.device)
 
-        optimizer = torch.optim.SGD(network.parameters(), args.lr,
-                                    momentum=args.momentum,
-                                    weight_decay=args.weight_decay)
+        optimizer = torch.optim.__dict__[args.optimizer](network.parameters(), args.lr, momentum=args.momentum,
+                                                         weight_decay=args.weight_decay, nesterov=args.nesterov)
 
         train_loader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch_size, shuffle=True, num_workers=2,
                                                    pin_memory=True)
         test_loader = torch.utils.data.DataLoader(dst_test, batch_size=args.batch_size, shuffle=True, num_workers=2,
-                                                   pin_memory=True)
+                                                  pin_memory=True)
+
+        """
+        code for selection
+        
+        """
+
+        # cosine learning rate
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, len(subset_loader) * args.epochs)
 
         for epoch in range(args.start_epoch, args.epochs):
             # train for one epoch
-            train(train_loader, network, criterion, optimizer, epoch, args)
+            train(train_loader, network, criterion, optimizer, scheduler, epoch, args)
 
             # evaluate on validation set
             prec1 = test(test_loader, network, criterion, args)

@@ -6,11 +6,12 @@ from .. import nets
 
 
 class GradientNorm(CoresetMethod):
-    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200, **kwargs):
+    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200, all_param=False, **kwargs):
         super().__init__(dst_train, args, fraction, random_seed)
         self.epochs = epochs
         self.n_train = len(dst_train)
         self.coreset_size = round(self.n_train * fraction)
+        self.all_param = all_param
 
     def train(self, model, model_optimizer, criterion, epoch):
         """ Train model for one epoch """
@@ -48,11 +49,17 @@ class GradientNorm(CoresetMethod):
             loss = criterion(outputs, targets)
 
             for index, loss_val in zip(batch_inds, loss):
-                loss_val.backward(retain_graph=True)
-
-                # Save gradient of all parameters of the model into one tensor
-                self.norm_matrix[index, epoch] = torch.norm(
-                    torch.cat([torch.flatten(p.grad) for p in model.parameters() if p.requires_grad]), p=2)
+                # Save gradient of parameters of the model into one tensor
+                # If self.all_param==False, only calculate the gradient of the last layer,
+                # Otherwise, save gradients of all parameters.
+                if self.all_param:
+                    loss_val.backward(retain_graph=True)
+                    self.norm_matrix[index, epoch] = torch.norm(
+                        torch.cat([torch.flatten(p.grad) for p in model.parameters() if p.requires_grad]), p=2)
+                else:
+                    self.norm_matrix[index, epoch] = torch.norm(torch.cat(
+                        [torch.flatten(torch.autograd.grad(loss_val, p, retain_graph=True)[0]) for p in
+                         model.get_last_layer().parameters() if p.requires_grad]), p=2)
 
             # Total loss
             loss = loss.mean()
@@ -83,6 +90,6 @@ class GradientNorm(CoresetMethod):
 
     def select(self, **kwargs):
         self.run()
-        self.norm_mean = torch.mean(self.norm_mean, dim=1)
+        self.norm_mean = torch.mean(self.norm_mean, dim=1).numpy()
         top_k_examples = self.train_indx[np.argsort(self.norm_mean)][:self.coreset_size]
         return torch.utils.data.Subset(self.dst_train, top_k_examples), top_k_examples

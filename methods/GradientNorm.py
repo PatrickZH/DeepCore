@@ -1,95 +1,56 @@
-from CoresetMethod import CoresetMethod
+from EarlyTrain import EarlyTrain
 import torch
-from torch import nn
 import numpy as np
 from .. import nets
 
 
-class GradientNorm(CoresetMethod):
-    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200, all_param=False, **kwargs):
-        super().__init__(dst_train, args, fraction, random_seed)
+class GradientNorm(EarlyTrain):
+    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200, all_param=False,
+                 specific_model=None, balance=False, **kwargs):
+        super().__init__(dst_train, args, fraction, random_seed, epochs, specific_model)
         self.epochs = epochs
         self.n_train = len(dst_train)
         self.coreset_size = round(self.n_train * fraction)
+        self.specific_model = specific_model
+
+        if specific_model is not None and specific_model not in nets.model_choices:
+            self.specific_model = None
+
         self.all_param = all_param
+        self.balance = balance
 
-    def train(self, model, model_optimizer, criterion, epoch):
-        """ Train model for one epoch """
+    def after_loss(self, outputs, loss, predicted, targets, batch_inds, epoch):
+        for index, loss_val in zip(batch_inds, loss):
+            # Save gradient of parameters of the model into one tensor
+            # If self.all_param==False, only calculate the gradient of the last layer,
+            # Otherwise, save gradients of all parameters.
+            if self.all_param:
+                loss_val.backward(retain_graph=True)
+                self.norm_matrix[index, epoch] = torch.norm(
+                    torch.cat([torch.flatten(p.grad) for p in self.model.parameters() if p.requires_grad]), p=2)
+            else:
+                self.norm_matrix[index, epoch] = torch.norm(torch.cat(
+                    [torch.flatten(torch.autograd.grad(loss_val, p, retain_graph=True)[0]) for p in
+                     self.model.get_last_layer().parameters() if p.requires_grad]), p=2)
 
-        train_loss = 0.
-        correct = 0.
-        total = 0.
+    def while_update(self, loss, predicted, targets, epoch, batch_idx, batch_size):
+        print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f' % (
+            epoch, self.epochs, batch_idx + 1, (self.n_train // batch_size) + 1, loss.item()))
 
-        model.train()
-
-        # Get permutation to shuffle trainset
-        trainset_permutation_inds = np.random.permutation(np.arange(self.n_train))
-
-        print('\n=> Training Epoch #%d' % epoch)
-        batch_size = self.args.batch
-
-        for batch_idx, batch_start_ind in enumerate(range(0, self.n_train, batch_size)):
-
-            # Get trainset indices for batch
-            batch_inds = trainset_permutation_inds[batch_start_ind:
-                                                   batch_start_ind + batch_size]
-
-            # Get batch inputs and targets, transform them appropriately
-            transformed_trainset = []
-            for ind in batch_inds:
-                transformed_trainset.append(self.dst_train.__getitem__(ind)[0])
-            inputs = torch.stack(transformed_trainset).to(self.args.device)
-            targets = torch.LongTensor(np.array(self.dst_train.train_labels)[batch_inds].tolist()).to(self.args.device)
-
-            model_optimizer.zero_grad()
-
-            # Forward propagation, compute loss, get predictions
-
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
-
-            for index, loss_val in zip(batch_inds, loss):
-                # Save gradient of parameters of the model into one tensor
-                # If self.all_param==False, only calculate the gradient of the last layer,
-                # Otherwise, save gradients of all parameters.
-                if self.all_param:
-                    loss_val.backward(retain_graph=True)
-                    self.norm_matrix[index, epoch] = torch.norm(
-                        torch.cat([torch.flatten(p.grad) for p in model.parameters() if p.requires_grad]), p=2)
-                else:
-                    self.norm_matrix[index, epoch] = torch.norm(torch.cat(
-                        [torch.flatten(torch.autograd.grad(loss_val, p, retain_graph=True)[0]) for p in
-                         model.get_last_layer().parameters() if p.requires_grad]), p=2)
-
-            # Total loss
-            loss = loss.mean()
-            loss.backward()
-            model_optimizer.step()
-
-            print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f' % (
-                epoch, self.epochs, batch_idx + 1, (self.n_train // batch_size) + 1, loss.item()))
-
-    def run(self):
-        torch.manual_seed(self.random_seed)
-        np.random.seed(self.random_seed)
-        self.train_indx = np.arange(self.n_train)
-
-        model = nets.__dict__[self.args.model](self.args.channel, self.num_classes).to(self.args.device)
-        criterion = nn.CrossEntropyLoss().to(self.args.device)
-        criterion.__init__(reduce=False)
-
-        model_optimizer = torch.optim.__dict__[self.args.optimizer](model.parameters(), lr=self.args.lr,
-                                                                    momentum=self.args.momentum,
-                                                                    weight_decay=self.args.weight_decay)
-
+    def before_run(self):
         # Initialize a matrix to save norms of each sample
         self.norm_matrix = torch.zeros([self.n_train, self.epochs], requires_grad=False).to(self.args.device)
 
-        for epoch in range(self.epochs):
-            self.train(model, model_optimizer, criterion, epoch)
-
     def select(self, **kwargs):
         self.run()
-        self.norm_mean = torch.mean(self.norm_mean, dim=1).numpy()
-        top_k_examples = self.train_indx[np.argsort(self.norm_mean)][:self.coreset_size]
-        return torch.utils.data.Subset(self.dst_train, top_k_examples), top_k_examples
+        self.norm_mean = torch.mean(self.norm_matrix, dim=1).numpy()
+        if not self.balance:
+            top_examples = self.train_indx[np.argsort(self.norm_mean)][::-1][:self.coreset_size]
+        else:
+            top_examples = np.array([], dtype=np.int64)
+            for c in range(self.num_classes):
+                c_indx = self.train_indx[self.dst_train.targets == c]
+                budget = round(self.fraction * len(c_indx))
+                top_examples = np.append(top_examples, c_indx[np.argsort(self.norm_mean[c_indx])[::-1][:budget]])
+
+        return torch.utils.data.Subset(self.dst_train, top_examples), top_examples

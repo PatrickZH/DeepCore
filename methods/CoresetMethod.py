@@ -9,6 +9,9 @@ class CoresetMethod(object):
         self.index = []
         self.args = args
 
+        self.n_train = len(dst_train)
+        self.coreset_size = round(self.n_train * fraction)
+
     def select(self, **kwargs):
         return
 

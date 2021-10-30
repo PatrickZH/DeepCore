@@ -2,6 +2,7 @@ from CoresetMethod import CoresetMethod
 import torch
 from apricot.functions.facilityLocation import FacilityLocationSelection
 import numpy as np
+from methods_utils.euclidean import euclidean_dist_pair
 
 
 class CRAIG(CoresetMethod):
@@ -18,23 +19,6 @@ class CRAIG(CoresetMethod):
         self.balance = balance
         self.n_param = sum([p.view(-1).shape[0] for p in network.get_last_layer().parameters() if p.requires_grad])
 
-    def euclidean_dist(self, x, y):
-        m, n = x.size(0), y.size(0)
-        xx = torch.pow(x, 2).sum(1, keepdim=True).expand(m, n)
-        yy = torch.pow(y, 2).sum(1, keepdim=True).expand(n, m).t()
-        dist = xx + yy
-        dist.addmm_(1, -2, x, y.t())
-        dist = dist.clamp(min=1e-12).sqrt()
-        return dist
-
-    def euclidean_dist(self, x):
-        m = x.size(0)
-        xx = torch.pow(x, 2).sum(1, keepdim=True).expand(m, m)
-        dist = xx + xx.t()
-        dist.addmm_(1, -2, x, x.t())
-        dist = dist.clamp(min=1e-12).sqrt()
-        return dist
-
     def calc_gradient(self, index):
         sample_num = len(index)
         batch_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(self.dst_train, index),
@@ -46,7 +30,7 @@ class CRAIG(CoresetMethod):
         j = 0
         for input, targets in batch_loader:
             self.optimizer.zero_grad()
-            outputs = self.network(input.to(self.args.device))
+            outputs = torch.nn.functional.softmax(self.network(input.to(self.args.device)), dim=1)
             loss = self.criterion(outputs, targets.to(self.args.device))
 
             for loss_val in loss:
@@ -56,7 +40,7 @@ class CRAIG(CoresetMethod):
                 j = j + 1
 
             i = i + 1
-        return self.euclidean_dist(gradients)
+        return euclidean_dist_pair(gradients)
 
     def calc_weights(self, matrix, result):
         min_sample = torch.argmin(matrix[result], dim=0)

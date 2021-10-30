@@ -7,16 +7,12 @@ from copy import deepcopy
 from methods_utils.euclidean import euclidean_dist
 
 
-class kCenterGreedy(CoresetMethod):
-    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, already_selected=[], metric="euclidean",
-                 embedding_model=None):
-        super().__init__(dst_train, args, fraction, random_seed)
-        self.already_selected = already_selected
-        if self.already_selected.__len__() != 0:
-            if min(already_selected) < 0 or max(already_selected) >= self.n_train:
-                raise ValueError("List of already selected points out of the boundary.")
+# 需要加balance参数
 
-        self.min_distances = None
+class herding(CoresetMethod):
+    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, metric="euclidean", embedding_model=None,
+                 **kwargs):
+        super().__init__(dst_train, args, fraction, random_seed)
 
         if metric == "euclidean":
             self.metric = euclidean_dist
@@ -25,6 +21,7 @@ class kCenterGreedy(CoresetMethod):
 
         with torch.no_grad():
             torch.manual_seed(self.random_seed)
+            np.random.seed(self.random_seed)
 
             if embedding_model is not None:
                 if embedding_model in ["ResNet18", "ResNet34", "ResNet50", "ResNet101", "ResNet152"]:
@@ -36,8 +33,7 @@ class kCenterGreedy(CoresetMethod):
                     model = models.__dict__[embedding_model.lower()](pretrained=True)
                     if args.channel != 3:
                         model.features[0] = nn.Conv2d(args.channel, 64, kernel_size=(3, 3), stride=(1, 1),
-                                                      padding=(1, 1)).to(
-                            args.device)
+                                                      padding=(1, 1)).to(args.device)
                 else:
                     raise NotImplementedError("%s has not be implemented." % embedding_model)
 
@@ -64,35 +60,15 @@ class kCenterGreedy(CoresetMethod):
 
     def select(self, **kwargs):
         with torch.no_grad():
-            np.random.seed(self.random_seed)
-            if self.already_selected.__len__() == 0:
-                # Randomly select one initial point.
-                self.already_selected = [np.random.randint(0, self.n_train)]
-                self.coreset_size -= 1
-
+            indices = np.arange(self.n_train)
+            mu = torch.mean(self.matrix, dim=0)
             select_result = np.zeros(self.n_train, dtype=bool)
-            select_result[self.already_selected] = True
-
-            num_of_already_selected = np.sum(select_result)
-
-            # Initialize a (num_of_already_selected+self.coreset_size-1)*self.n_train matrix storing distances of pool points from each clustering center.
-            dis_matrix = -1 * torch.ones([num_of_already_selected + self.coreset_size - 1, self.n_train]).to(
-                self.args.device)
-
-            dis_matrix[:num_of_already_selected, ~select_result] = self.metric(self.matrix[select_result],
-                                                                               self.matrix[~select_result])
-
-            mins = torch.min(dis_matrix, dim=0).values
 
             for i in range(self.coreset_size):
-                p = torch.argmax(mins).item()
+                dist = self.metric(((i + 1) * mu - torch.sum(self.matrix[select_result], dim=0)).view(1, -1),
+                                   self.matrix[~select_result])
+                p = torch.argmax(dist).item()
+                p = indices[~select_result][p]
                 select_result[p] = True
 
-                if i == self.coreset_size - 1:
-                    break
-                mins[p] = -1
-                dis_matrix[num_of_already_selected + i, ~select_result] = self.metric(self.matrix[p],
-                                                                                      self.matrix[~select_result])
-                mins = torch.min(mins, dis_matrix[num_of_already_selected + i])
-            indices = np.arange(self.n_train)
         return torch.utils.data.Subset(self.dst_train, indices[select_result]), indices[select_result]

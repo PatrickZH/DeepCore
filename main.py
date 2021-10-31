@@ -2,7 +2,9 @@ import os, time
 import torch
 import torch.nn as nn
 import argparse
-import nets, datasets
+import deepcore.nets as nets
+import deepcore.datasets as datasets
+import deepcore.methods as methods
 from utils import train, test
 from torchvision import models
 
@@ -13,13 +15,12 @@ def main():
     parser.add_argument('--model', type=str, default='ConvNet', help='model')
     parser.add_argument('--ipc', type=int, default=1, help='image(s) per class')
     parser.add_argument('--if_selection', type=str, default="True", help="if selection is preformed")
-    parser.add_argument('--selection', type=str, default="Uniform", help="selection method")
+    parser.add_argument('--selection', type=str, default="uniform", help="selection method")
     parser.add_argument('--num_exp', type=int, default=5, help='the number of experiments')
     parser.add_argument('--num_eval', type=int, default=10, help='the number of evaluating randomly initialized models')
-    parser.add_argument('--epoch_eval_train', type=int, default=300, help='epochs to train a model with synthetic data')
+    parser.add_argument('--epochs', default=200, type=int, help='number of total epochs to run')
     parser.add_argument('--iteration', type=int, default=1000, help='training iterations')
     parser.add_argument('--lr', type=float, default=0.1, help='learning rate for updating network parameters')
-    parser.add_argument('--batch', type=int, default=256, help='batch size for real data')
     parser.add_argument('--data_path', type=str, default='data', help='dataset path')
     parser.add_argument('--save_path', type=str, default='result', help='path to save results')
     parser.add_argument('--gpu', default=None, nargs="+", type=int, help='GPU id to use.')
@@ -28,13 +29,17 @@ def main():
     parser.add_argument('--wd', '--weight-decay', default=5e-4, type=float,
                         metavar='W', help='weight decay (default: 5e-4)',
                         dest='weight_decay')
-    parser.add_argument('-b', '--batch-size', default=256, type=int,
-                        metavar='N',
+    parser.add_argument('--batch', '--batch-size', "-b", default=256, type=int, metavar='N',
                         help='mini-batch size (default: 256)')
     parser.add_argument('--print-freq', '-p', default=10, type=int,
                         help='print frequency (default: 10)')
     parser.add_argument('--optimizer', default="SGD", help='optimizer to use, e.g. SGD, Adam')
     parser.add_argument("--nesterov", default=True, type=bool, help="if set nesterov")
+    parser.add_argument('--fraction', default=0.1, type=float, help='fraction of data to be selected (default: 0.1)')
+    parser.add_argument('--seed', default=int(time.time() * 1000) % 100000, type=int, help="random seed")
+    parser.add_argument("--selection_epochs", default=40, type=int,
+                        help="number of epochs whiling performing selection on full dataset")
+    parser.add_argument('--balance', default=True, type=bool, help="whether balance selection is performed per class")
 
     args = parser.parse_args()
     args.if_selection = True if args.if_selection == 'True' else False
@@ -53,7 +58,7 @@ def main():
     for exp in range(args.num_exp):
         print('\n================== Exp %d ==================\n ' % exp)
 
-        torch.random.manual_seed(int(time.time() * 1000) % 100000)
+        torch.random.manual_seed(args.seed)
 
         if args.dataset == "ImageNet":
             # Use torchvision models
@@ -74,18 +79,26 @@ def main():
         optimizer = torch.optim.__dict__[args.optimizer](network.parameters(), args.lr, momentum=args.momentum,
                                                          weight_decay=args.weight_decay, nesterov=args.nesterov)
 
-        train_loader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch_size, shuffle=True, num_workers=2,
-                                                   pin_memory=True)
-        test_loader = torch.utils.data.DataLoader(dst_test, batch_size=args.batch_size, shuffle=True, num_workers=2,
+        if args.if_selection:
+            method = methods.__dict__[args.selection](dst_train, args, args.fraction, args.seed,
+                                                      epochs=args.selection_epochs, selection_method='Entropy',
+                                                      embedding_model="ResNet18", balance=args.balance)
+            subset, ind = method.select()
+            print(len(ind))
+            train_loader = torch.utils.data.DataLoader(subset, batch_size=args.batch, shuffle=True,
+                                                       num_workers=2, pin_memory=True)
+        else:
+            train_loader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch, shuffle=True, num_workers=2,
+                                                       pin_memory=True)
+
+        test_loader = torch.utils.data.DataLoader(dst_test, batch_size=args.batch, shuffle=True, num_workers=2,
                                                   pin_memory=True)
 
-        """
-        code for selection
-        
-        """
-
         # cosine learning rate
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, len(subset_loader) * args.epochs)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, len(train_loader) * args.epochs)
+
+        best_prec1 = 0.0
+        args.start_epoch = 0
 
         for epoch in range(args.start_epoch, args.epochs):
             # train for one epoch

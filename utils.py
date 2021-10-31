@@ -3,9 +3,9 @@ import time, torch
 
 def train(train_loader, network, criterion, optimizer, scheduler, epoch, args):
     """Train for one epoch on the training set"""
-    batch_time = AverageMeter()
-    losses = AverageMeter()
-    top1 = AverageMeter()
+    batch_time = AverageMeter('Time', ':6.3f')
+    losses = AverageMeter('Loss', ':.4e')
+    top1 = AverageMeter('Acc@1', ':6.2f')
 
     # switch to train mode
     network.train()
@@ -44,9 +44,9 @@ def train(train_loader, network, criterion, optimizer, scheduler, epoch, args):
 
 
 def test(test_loader, network, criterion, args):
-    batch_time = AverageMeter()
-    losses = AverageMeter()
-    top1 = AverageMeter()
+    batch_time = AverageMeter('Time', ':6.3f')
+    losses = AverageMeter('Loss', ':.4e')
+    top1 = AverageMeter('Acc@1', ':6.2f')
 
     # switch to evaluate mode
     network.eval()
@@ -80,6 +80,7 @@ def test(test_loader, network, criterion, args):
                 top1=top1))
 
     print(' * Prec@1 {top1.avg:.3f}'.format(top1=top1))
+    return top1.avg
 
 
 class AverageMeter(object):

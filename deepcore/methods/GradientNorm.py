@@ -19,7 +19,7 @@ class GradientNorm(EarlyTrain):
         self.all_param = all_param
         self.balance = balance
 
-    def after_loss(self, outputs, loss, predicted, targets, batch_inds, epoch):
+    def after_loss(self, outputs, loss, targets, batch_inds, epoch):
         '''
         for index, loss_val in zip(batch_inds, loss):
             # Save gradient of parameters of the model into one tensor
@@ -56,8 +56,9 @@ class GradientNorm(EarlyTrain):
                     batch_num, self.args.num_classes, 1).repeat(1, 1, embedding_dim)).view(batch_num, -1)], dim=1),
                                                              dim=1, p=2)
 
-    def while_update(self, loss, predicted, targets, epoch, batch_idx, batch_size):
-        print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f' % (
+    def while_update(self, outputs, loss, targets, epoch, batch_idx, batch_size):
+        if batch_idx % self.args.print_freq == 0:
+            print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f' % (
             epoch, self.epochs, batch_idx + 1, (self.n_train // batch_size) + 1, loss.item()))
 
     def before_run(self):

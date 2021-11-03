@@ -153,7 +153,7 @@ class GradMatch(CoresetMethod):
         return x
 
     def calc_gradient(self, index=None, val=False):
-
+        self.network.record_embedding = True
         if val:
             batch_loader = torch.utils.data.DataLoader(
                 self.dst_val if index is None else torch.utils.data.Subset(self.dst_val, index),
@@ -165,22 +165,22 @@ class GradMatch(CoresetMethod):
                 batch_size=self.args.batch)
             sample_num = self.n_train if index is None else len(index)
 
-        gradients = torch.zeros([sample_num, self.n_param], requires_grad=False).to(self.args.device)
+        self.embedding_dim = self.network.get_last_layer().in_features
+        gradients = torch.zeros([sample_num, self.args.num_classes * (self.embedding_dim + 1)], requires_grad=False, device="cpu")
 
-        i = 0
-        j = 0
-        for input, targets in batch_loader:
+        for i, (input, targets) in enumerate(batch_loader):
             self.optimizer.zero_grad()
-            outputs = torch.nn.functional.softmax(self.network(input.to(self.args.device)), dim=1)
-            loss = self.criterion(outputs, targets.to(self.args.device))
+            outputs = self.network(input.to(self.args.device))
+            loss = self.criterion(torch.nn.functional.softmax(outputs, dim=1), targets.to(self.args.device))
+            batch_num = targets.shape[0]
+            bias_parameters_grads = torch.autograd.grad(loss.sum(), outputs, retain_graph=True)[0].cpu()
+            with torch.no_grad():
+                weight_parameters_grads = self.network.embedding.cpu().view(batch_num, 1, self.embedding_dim).repeat(1,self.args.num_classes,1) * bias_parameters_grads.view(
+                batch_num, self.args.num_classes, 1).repeat(1, 1, self.embedding_dim)
+                gradients[i * self.args.batch:min((i + 1) * self.args.batch, sample_num)] = torch.cat(
+                [bias_parameters_grads, weight_parameters_grads.flatten(1)], dim=1)
 
-            for loss_val in loss:
-                gradients[j:, ] = torch.cat(
-                    [torch.flatten(torch.autograd.grad(loss_val, p, retain_graph=True)[0]) for p in
-                     self.network.get_last_layer().parameters() if p.requires_grad])
-                j = j + 1
-
-            i = i + 1
+        self.network.record_embedding = False
         return gradients
 
     def select(self, **kwargs):
@@ -205,7 +205,7 @@ class GradMatch(CoresetMethod):
                     cur_weights = self.OrthogonalMP_REG_numpy(cur_gradients.numpy().T, cur_val_gradients.numpy(),
                                                               nnz=round(len(class_index) * self.fraction))
                 else:
-                    cur_weights = self.OrthogonalMP_REG_torch(cur_gradients.T, cur_val_gradients,
+                    cur_weights = self.OrthogonalMP_REG_torch(cur_gradients.to(self.args.device).T, cur_val_gradients.to(self.args.device),
                                                               nnz=round(len(class_index) * self.fraction))
                 selection_result = np.append(selection_result, class_index[np.nonzero(cur_weights)[0]])
                 weights = np.append(weights, cur_weights[np.nonzero(cur_weights)[0]])
@@ -221,8 +221,8 @@ class GradMatch(CoresetMethod):
                 cur_weights = self.OrthogonalMP_REG_numpy(cur_gradients.numpy().T, cur_val_gradients.numpy(),
                                                           nnz=self.coreset_size)
             else:
-                cur_weights = self.OrthogonalMP_REG_torch(cur_gradients.T, cur_val_gradients,
+                cur_weights = self.OrthogonalMP_REG_torch(cur_gradients.to(self.args.device).T, cur_val_gradients.to(self.args.device),
                                                           nnz=self.coreset_size)
             selection_result = np.nonzero(cur_weights)[0]
             weights = cur_weights[selection_result]
-        return torch.utils.data.Subset(self.dst_train, selection_result), selection_result, weights
+        return torch.utils.data.Subset(self.dst_train, selection_result), selection_result#, weights

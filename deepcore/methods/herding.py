@@ -23,7 +23,7 @@ class herding(CoresetMethod):
             torch.manual_seed(self.random_seed)
             np.random.seed(self.random_seed)
 
-            if embedding_model is not None:
+            if embedding_model is not None and not callable(embedding_model):
                 if embedding_model in ["ResNet18", "ResNet34", "ResNet50", "ResNet101", "ResNet152"]:
                     model = models.__dict__[embedding_model.lower()](pretrained=True).to(args.device)
                     if args.channel != 3:
@@ -44,6 +44,10 @@ class herding(CoresetMethod):
                 else:
                     temp_dst_train = dst_train
                 self.emb_dim = 1000
+            elif callable(embedding_model):
+                temp_dst_train = dst_train
+                model = embedding_model
+                self.emb_dim = model(next(iter(dst_train))[0].unsqueeze(0).to(args.device)).shape[1]
             else:
                 temp_dst_train = dst_train
                 self.emb_dim = args.channel * args.im_size[0] * args.im_size[1]
@@ -65,6 +69,8 @@ class herding(CoresetMethod):
             select_result = np.zeros(self.n_train, dtype=bool)
 
             for i in range(self.coreset_size):
+                if i % self.args.print_freq == 0:
+                    print("| Selecting [%3d/%3d]"%(i + 1, self.coreset_size))
                 dist = self.metric(((i + 1) * mu - torch.sum(self.matrix[select_result], dim=0)).view(1, -1),
                                    self.matrix[~select_result])
                 p = torch.argmax(dist).item()

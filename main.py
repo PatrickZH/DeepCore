@@ -31,8 +31,8 @@ def main():
                         dest='weight_decay')
     parser.add_argument('--batch', '--batch-size', "-b", default=256, type=int, metavar='N',
                         help='mini-batch size (default: 256)')
-    parser.add_argument('--print-freq', '-p', default=10, type=int,
-                        help='print frequency (default: 10)')
+    parser.add_argument('--print_freq', '-p', default=20, type=int,
+                        help='print frequency (default: 20)')
     parser.add_argument('--optimizer', default="SGD", help='optimizer to use, e.g. SGD, Adam')
     parser.add_argument("--nesterov", default=True, type=bool, help="if set nesterov")
     parser.add_argument('--fraction', default=0.1, type=float, help='fraction of data to be selected (default: 0.1)')
@@ -81,8 +81,8 @@ def main():
 
         if args.if_selection:
             method = methods.__dict__[args.selection](dst_train, args, args.fraction, args.seed,
-                                                      epochs=args.selection_epochs, selection_method='Entropy',
-                                                      embedding_model="ResNet18", balance=args.balance)
+                                                      epochs=args.selection_epochs, selection_method='LeastConfidence',
+                                                      specific_model="LeNet", balance=args.balance, network=network,optimizer=optimizer, criterion=criterion)
             subset, ind = method.select()
             print(len(ind))
             train_loader = torch.utils.data.DataLoader(subset, batch_size=args.batch, shuffle=True,

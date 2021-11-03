@@ -111,14 +111,14 @@ class EarlyTrain(CoresetMethod):
             self.model_optimizer.zero_grad()
             outputs = self.model(inputs)
             loss = self.criterion(torch.nn.functional.softmax(outputs, dim=1), targets)
-            _, predicted = torch.max(outputs.data, 1)
 
-            self.after_loss(outputs, loss, predicted, targets, batch_inds, epoch)
+
+            self.after_loss(outputs, loss, targets, batch_inds, epoch)
 
             # Update loss, backward propagate, update optimizer
             loss = loss.mean()
 
-            self.while_update(loss, predicted, targets, epoch, batch_idx, batch_size)
+            self.while_update(outputs, loss, targets, epoch, batch_idx, batch_size)
 
             loss.backward()
             self.model_optimizer.step()
@@ -152,10 +152,10 @@ class EarlyTrain(CoresetMethod):
     def before_train(self):
         pass
 
-    def after_loss(self, outputs, loss, predicted, targets, batch_inds, epoch):
+    def after_loss(self, outputs, loss, targets, batch_inds, epoch):
         pass
 
-    def while_update(self, loss, predicted, targets, epoch, batch_idx, batch_size):
+    def while_update(self, outputs, loss, targets, epoch, batch_idx, batch_size):
         pass
 
     def finish_train(self):

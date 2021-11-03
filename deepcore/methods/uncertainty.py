@@ -18,8 +18,24 @@ class uncertainty(EarlyTrain):
         self.epochs = epochs
         self.balance = balance
 
-    def while_update(self, loss, predicted, targets, epoch, batch_idx, batch_size):
-        print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f' % (
+    def before_train(self):
+        pass
+
+    def after_loss(self, outputs, loss, targets, batch_inds, epoch):
+        pass
+
+    def before_epoch(self):
+        pass
+
+    def after_epoch(self):
+        pass
+
+    def before_run(self):
+        pass
+
+    def while_update(self, outputs, loss, targets, epoch, batch_idx, batch_size):
+        if batch_idx % self.args.print_freq == 0:
+            print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f' % (
             epoch, self.epochs, batch_idx + 1, (self.n_train // batch_size) + 1, loss.item()))
 
     def finish_run(self):

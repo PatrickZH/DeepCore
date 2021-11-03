@@ -26,7 +26,7 @@ class kCenterGreedy(CoresetMethod):
         with torch.no_grad():
             torch.manual_seed(self.random_seed)
 
-            if embedding_model is not None:
+            if embedding_model is not None and not callable(embedding_model):
                 if embedding_model in ["ResNet18", "ResNet34", "ResNet50", "ResNet101", "ResNet152"]:
                     model = models.__dict__[embedding_model.lower()](pretrained=True).to(args.device)
                     if args.channel != 3:
@@ -48,6 +48,10 @@ class kCenterGreedy(CoresetMethod):
                 else:
                     temp_dst_train = dst_train
                 self.emb_dim = 1000
+            elif callable(embedding_model):
+                temp_dst_train = dst_train
+                model = embedding_model
+                self.emb_dim = model(next(iter(dst_train))[0].unsqueeze(0).to(args.device)).shape[1]
             else:
                 temp_dst_train = dst_train
                 self.emb_dim = args.channel * args.im_size[0] * args.im_size[1]
@@ -76,7 +80,7 @@ class kCenterGreedy(CoresetMethod):
             num_of_already_selected = np.sum(select_result)
 
             # Initialize a (num_of_already_selected+self.coreset_size-1)*self.n_train matrix storing distances of pool points from each clustering center.
-            dis_matrix = -1 * torch.ones([num_of_already_selected + self.coreset_size - 1, self.n_train]).to(
+            dis_matrix = -1 * torch.ones([num_of_already_selected + self.coreset_size - 1, self.n_train], requires_grad=False).to(
                 self.args.device)
 
             dis_matrix[:num_of_already_selected, ~select_result] = self.metric(self.matrix[select_result],
@@ -85,6 +89,8 @@ class kCenterGreedy(CoresetMethod):
             mins = torch.min(dis_matrix[:num_of_already_selected, :], dim=0).values
 
             for i in range(self.coreset_size):
+                if i % self.args.print_freq == 0:
+                    print("| Selecting [%3d/%3d]"%(i + 1, self.coreset_size))
                 p = torch.argmax(mins).item()
                 select_result[p] = True
 

@@ -8,8 +8,8 @@ import numpy as np
 # https://github.com/mtoneva/example_forgetting
 
 class forgetting(EarlyTrain):
-    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200, specific_model=None, balance=True, **kwargs):
-        super().__init__(dst_train, args, fraction, random_seed, epochs, specific_model)
+    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200, specific_model=None, balance=True, dst_test=None, **kwargs):
+        super().__init__(dst_train, args, fraction, random_seed, epochs, specific_model=specific_model, dst_test=dst_test)
 
         self.balance = balance
 
@@ -75,4 +75,4 @@ class forgetting(EarlyTrain):
                 top_examples = np.append(top_examples, c_indx[np.argsort(self.forgetting_events[c_indx].cpu().numpy())[::-1][:budget]])
 
 
-        return torch.utils.data.Subset(self.dst_train, top_examples), top_examples
+        return top_examples

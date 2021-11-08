@@ -6,7 +6,7 @@ import numpy as np
 class uncertainty(EarlyTrain):
     def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200, selection_method="LeastConfidence",
                  specific_model=None, balance=False, **kwargs):
-        super().__init__(dst_train, args, fraction, random_seed, epochs, specific_model)
+        super().__init__(dst_train, args, fraction, random_seed, epochs, specific_model, **kwargs)
 
         selection_choices = ["LeastConfidence",
                              "Entropy",
@@ -33,10 +33,13 @@ class uncertainty(EarlyTrain):
     def before_run(self):
         pass
 
+    def num_classes_mismatch(self):
+        raise ValueError("num_classes of pretrain dataset does not match that of the training dataset.")
+
     def while_update(self, outputs, loss, targets, epoch, batch_idx, batch_size):
         if batch_idx % self.args.print_freq == 0:
             print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f' % (
-            epoch, self.epochs, batch_idx + 1, (self.n_train // batch_size) + 1, loss.item()))
+            epoch, self.epochs, batch_idx + 1, (self.n_pretrain_size // batch_size) + 1, loss.item()))
 
     def finish_run(self):
         if self.balance:
@@ -53,7 +56,7 @@ class uncertainty(EarlyTrain):
         with torch.no_grad():
             train_loader = torch.utils.data.DataLoader(
                 self.dst_train if index is None else torch.utils.data.Subset(self.dst_train, index),
-                batch_size=self.args.batch)
+                batch_size=self.args.selection_batch)
 
             scores = np.array([])
             for input, _ in train_loader:
@@ -74,4 +77,4 @@ class uncertainty(EarlyTrain):
 
     def select(self, **kwargs):
         selection_result = self.run()
-        return torch.utils.data.Subset(self.dst_train, selection_result), selection_result
+        return selection_result

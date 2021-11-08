@@ -15,7 +15,7 @@ def SelectionViaProxy(dst_train, args, fraction=0.5, random_seed=None, epochs=20
         raise ValueError("Model unavailable.")
 
     if selection_method == "forgetting":
-        return forgetting(dst_train, args, fraction, random_seed, epochs, proxy_model, balance, **kwargs)
+        return forgetting(dst_train, args, fraction, random_seed, epochs, proxy_model, balance)
     else:
         return uncertainty(dst_train, args, fraction, random_seed, epochs, selection_method, proxy_model, balance, **kwargs)
 

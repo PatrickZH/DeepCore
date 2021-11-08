@@ -20,14 +20,14 @@ class uniform(CoresetMethod):
                                    np.random.choice(np.arange(self.n_train)[self.dst_train.targets == c],
                                                     round(self.fraction * sum(self.dst_train.targets == c).item()),
                                                     replace=self.replace))
-        return Subset(self.dst_train, self.index), self.index
+        return self.index
 
     def select_no_balance(self):
         np.random.seed(self.random_seed)
         self.index = np.random.choice(np.arange(self.n_train), round(self.n_train * self.fraction),
                                       replace=self.replace)
 
-        return Subset(self.dst_train, self.index), self.index
+        return  self.index
 
     def select(self, **kwargs):
         return self.select_balance() if self.balance else self.select_no_balance()

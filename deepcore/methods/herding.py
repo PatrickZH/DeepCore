@@ -7,7 +7,7 @@ from copy import deepcopy
 from .methods_utils import euclidean_dist
 
 
-# 需要加balance参数
+# TODO:需要加balance参数
 
 class herding(CoresetMethod):
     def __init__(self, dst_train, args, fraction=0.5, random_seed=None, metric="euclidean", embedding_model=None,
@@ -55,11 +55,11 @@ class herding(CoresetMethod):
 
             self.matrix = torch.zeros([self.n_train, self.emb_dim], requires_grad=False).to(args.device)
 
-            data_loader = torch.utils.data.DataLoader(temp_dst_train, batch_size=args.batch)
+            data_loader = torch.utils.data.DataLoader(temp_dst_train, batch_size=args.selection_batch)
 
             i = 0
             for inputs, _ in data_loader:
-                self.matrix[i * args.batch:min((i + 1) * args.batch, self.n_train)] = model(inputs.to(args.device))
+                self.matrix[i * args.selection_batch:min((i + 1) * args.selection_batch, self.n_train)] = model(inputs.to(args.device))
                 i = i + 1
 
     def select(self, **kwargs):
@@ -77,4 +77,4 @@ class herding(CoresetMethod):
                 p = indices[~select_result][p]
                 select_result[p] = True
 
-        return torch.utils.data.Subset(self.dst_train, indices[select_result]), indices[select_result]
+        return indices[select_result]

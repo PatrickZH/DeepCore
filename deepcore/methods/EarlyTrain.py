@@ -2,11 +2,21 @@ from .CoresetMethod import CoresetMethod
 import torch, time
 from torch import nn
 import numpy as np
+from copy import deepcopy
 from .. import nets
+from torchvision import transforms
 
 
 class EarlyTrain(CoresetMethod):
-    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200, specific_model=None, **kwargs):
+    '''
+    Core code for training related to coreset selection methods when pre-training is required.
+
+    :param
+    dst_train:
+
+    '''
+    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200, specific_model=None,
+                 torchvision_pretrain: bool = False, dst_pretrain_dict: dict = {}, fraction_pretrain=1., dst_test=None, **kwargs):
         super().__init__(dst_train, args, fraction, random_seed)
         self.epochs = epochs
         self.n_train = len(dst_train)
@@ -16,72 +26,42 @@ class EarlyTrain(CoresetMethod):
         if specific_model is not None and specific_model not in nets.model_choices:
             self.specific_model = None
 
-    '''
-    def before_train(self):
-        self.train_loss = 0.
-        self.correct = 0.
-        self.total = 0.
+        if fraction_pretrain <= 0. or fraction_pretrain > 1.:
+            raise ValueError("Illegal pretrain fraction value.")
+        self.fraction_pretrain = fraction_pretrain
 
+        if dst_pretrain_dict.__len__() != 0:
+            dict_keys = dst_pretrain_dict.keys()
+            if 'im_size' not in dict_keys or 'channel' not in dict_keys or 'dst_train' not in dict_keys or 'num_classes' not in dict_keys:
+                raise AttributeError(
+                    'Argument dst_pretrain_dict must contain imszie, channel, dst_train and num_classes.')
+            if dst_pretrain_dict['im_size'][0] != args.im_size[0] or dst_pretrain_dict['im_size'][0] != args.im_size[0]:
+                raise ValueError("im_size of pretrain dataset does not match that of the training dataset.")
+            if dst_pretrain_dict['channel'] != args.channel:
+                raise ValueError("channel of pretrain dataset does not match that of the training dataset.")
+            if dst_pretrain_dict['num_classes'] != args.num_classes:
+                self.num_classes_mismatch()
 
-    def after_loss(self, outputs, loss, predicted, targets, batch_inds):
-        # Update statistics and loss
-        acc = predicted == targets
-        for j, index in enumerate(batch_inds):
+        self.dst_pretrain_dict = dst_pretrain_dict
+        self.torchvision_pretrain = torchvision_pretrain
+        self.if_dst_pretrain = (len(self.dst_pretrain_dict) != 0)
 
-            # Get index in original dataset (not sorted by forgetting)
-            index_in_original_dataset = self.train_indx[index]
+        if torchvision_pretrain:
+            # Pretrained models in torchvision only accept 224*224 inputs, therefore we resize current datasets to 224*224.
+            if args.im_size[0] != 224 or args.im_size[1] != 224:
+                self.dst_train = deepcopy(dst_train)
+                self.dst_train.transform = transforms.Compose([self.dst_train.transform, transforms.Resize(224)])
+                if self.if_dst_pretrain:
+                    self.dst_pretrain_dict['dst_train'] = deepcopy(dst_pretrain_dict['dst_train'])
+                    self.dst_pretrain_dict['dst_train'].transform = transforms.Compose(
+                        [self.dst_pretrain_dict['dst_train'].transform, transforms.Resize(224)])
+        if self.if_dst_pretrain:
+            self.n_pretrain = len(self.dst_pretrain_dict['dst_train'])
+        self.n_pretrain_size = round(
+            self.fraction_pretrain * (self.n_pretrain if self.if_dst_pretrain else self.n_train))
+        self.dst_test = dst_test
 
-            # Compute missclassification margin
-            output_correct_class = outputs.data[j, targets[j].item()]
-            sorted_output, _ = torch.sort(outputs.data[j, :])
-            if acc[j]:
-                # Example classified correctly, highest incorrect class is 2nd largest output
-                output_highest_incorrect_class = sorted_output[-2]
-            else:
-                # Example misclassified, highest incorrect class is max output
-                output_highest_incorrect_class = sorted_output[-1]
-            margin = output_correct_class.item(
-            ) - output_highest_incorrect_class.item()
-
-            # Add the statistics of the current training example to dictionary
-            index_stats = self.example_stats.get(index_in_original_dataset,
-                                                 [[], [], []])
-            index_stats[0].append(loss[j].item())
-            index_stats[1].append(acc[j].sum().item())
-            index_stats[2].append(margin)
-            self.example_stats[index_in_original_dataset] = index_stats
-
-    def while_update(self, loss, predicted, targets, epoch, batch_idx, batch_size):
-        self.train_loss += loss.item()
-        self.total += targets.size(0)
-        self.correct += predicted.eq(targets.data).cpu().sum()
-
-        print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%' % (
-            epoch, self.epochs, batch_idx + 1, (self.n_train // batch_size) + 1, loss.item(),
-            100. * self.correct.item() / self.total))
-
-        # Add training accuracy to dict
-        index_stats = self.example_stats.get('train', [[], []])
-        index_stats[1].append(100. * self.correct.item() / float(self.total))
-        self.example_stats['train'] = index_stats
-
-    def finish_train(self):
-        pass
-    
-    def before_epoch(self):
-        self.start_time = time.time()
-
-    def after_epoch(self):
-        epoch_time = time.time() - self.start_time
-        self.elapsed_time += epoch_time
-        print('| Elapsed time : %d:%02d:%02d' % (self.get_hms(self.elapsed_time)))
-
-    def before_run(self):
-        self.best_acc = 0
-        self.elapsed_time = 0
-    '''
-
-    def train(self, epoch, **kwargs):
+    def train(self, epoch, list_of_train_idx, **kwargs):
         """ Train model for one epoch """
 
         self.before_train()
@@ -89,12 +69,12 @@ class EarlyTrain(CoresetMethod):
         self.model.train()
 
         # Get permutation to shuffle trainset
-        trainset_permutation_inds = np.random.permutation(np.arange(self.n_train))
+        trainset_permutation_inds = np.random.permutation(list_of_train_idx)
 
         print('\n=> Training Epoch #%d' % epoch)
-        batch_size = self.args.batch
+        batch_size = self.args.selection_batch
 
-        for batch_idx, batch_start_ind in enumerate(range(0, self.n_train, batch_size)):
+        for batch_idx, batch_start_ind in enumerate(range(0, self.n_pretrain_size, batch_size)):
 
             # Get trainset indices for batch
             batch_inds = trainset_permutation_inds[batch_start_ind:
@@ -102,16 +82,19 @@ class EarlyTrain(CoresetMethod):
 
             # Get batch inputs and targets, transform them appropriately
             transformed_trainset = []
+            transformed_taregts = []
             for ind in batch_inds:
-                transformed_trainset.append(self.dst_train.__getitem__(ind)[0])
+                batch_data_and_targets = (
+                    self.dst_pretrain_dict['dst_train'] if self.if_dst_pretrain else self.dst_train).__getitem__(ind)
+                transformed_trainset.append(batch_data_and_targets[0])
+                transformed_taregts.append(batch_data_and_targets[1])
             inputs = torch.stack(transformed_trainset).to(self.args.device)
-            targets = torch.LongTensor(np.array(self.dst_train.targets)[batch_inds].tolist()).to(self.args.device)
+            targets = torch.tensor(transformed_taregts, device=self.args.device, requires_grad=False, dtype=torch.long)
 
             # Forward propagation, compute loss, get predictions
             self.model_optimizer.zero_grad()
             outputs = self.model(inputs)
-            loss = self.criterion(torch.nn.functional.softmax(outputs, dim=1), targets)
-
+            loss = self.criterion(outputs, targets)
 
             self.after_loss(outputs, loss, targets, batch_inds, epoch)
 
@@ -131,23 +114,61 @@ class EarlyTrain(CoresetMethod):
 
         # Setup model and loss
         self.model = nets.__dict__[self.args.model if self.specific_model is None else self.specific_model](
-            self.args.channel, self.num_classes).to(self.args.device)
+            self.args.channel, self.dst_pretrain_dict["num_classes"] if self.if_dst_pretrain else self.num_classes,
+            pretrained=self.torchvision_pretrain,
+            im_size=(224, 224) if self.torchvision_pretrain else self.args.im_size).to(self.args.device)
         self.criterion = nn.CrossEntropyLoss().to(self.args.device)
         self.criterion.__init__(reduce=False)
 
         # Setup optimizer
-        self.model_optimizer = torch.optim.__dict__[self.args.optimizer](self.model.parameters(), lr=self.args.lr,
-                                                                         momentum=self.args.momentum,
-                                                                         weight_decay=self.args.weight_decay)
+        self.model_optimizer = torch.optim.__dict__[self.args.selection_optimizer](self.model.parameters(), lr=self.args.selection_lr,
+                                                                         momentum=self.args.selection_momentum,
+                                                                         weight_decay=self.args.selection_weight_decay,
+                                                                         nesterov=self.args.selection_nesterov)
 
         self.before_run()
 
+        list_of_train_idx = np.random.choice(np.arange(self.n_pretrain if self.if_dst_pretrain else self.n_train),
+                                             self.n_pretrain_size, replace=False)
+
         for epoch in range(self.epochs):
             self.before_epoch()
-            self.train(epoch)
-            # self.test(epoch, model)
+            self.train(epoch, list_of_train_idx)
+            if self.dst_test is not None and self.args.selection_test_interval > 0 and (epoch+1) % self.args.selection_test_interval == 0:
+                self.test(epoch)
             self.after_epoch()
         return self.finish_run()
+
+    def test(self, epoch):
+        self.model.no_grad = True
+        self.model.eval()
+
+        test_loader = torch.utils.data.DataLoader(self.dst_test if self.args.selection_test_fraction==1. else
+                    torch.utils.data.Subset(self.dst_test, np.random.choice(np.arange(len(self.dst_test)),
+                  round(len(self.dst_test) * self.args.selection_test_fraction), replace=False)),
+                    batch_size=self.args.selection_batch, shuffle=True, num_workers=2, pin_memory=True)
+        correct = 0.
+        total = 0.
+
+        print('\n=> Testing Epoch #%d' % epoch)
+
+        for batch_idx, (input, target) in enumerate(test_loader):
+            output = self.model(input.to(self.args.device))
+            loss = self.criterion(output, target.to(self.args.device)).sum()
+
+            predicted = torch.max(output.data, 1).indices.cpu()
+            correct += predicted.eq(target).sum().item()
+            total += target.size(0)
+
+            if batch_idx % self.args.print_freq == 0:
+                print('| Test Epoch [%3d/%3d] Iter[%3d/%3d]\t\tTest Loss: %.4f Test Acc: %.3f%%' % (
+            epoch, self.epochs, batch_idx + 1, (round(len(self.dst_test) * self.args.selection_test_fraction) //
+                                                self.args.selection_batch) + 1, loss.item(), 100. * correct / total))
+
+        self.model.no_grad = False
+
+    def num_classes_mismatch(self):
+        pass
 
     def before_train(self):
         pass

@@ -269,4 +269,4 @@ class Bilevel(CoresetMethod):
                                                                 cache_kernel=True,
                                                                 start_size=10, inner_reg=1e-7)
 
-        return torch.utils.data.Subset(self.dst_train, inds), inds, weights
+        return inds, weights

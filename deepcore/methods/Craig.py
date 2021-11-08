@@ -22,7 +22,7 @@ class Craig(CoresetMethod):
     def calc_gradient(self, index):
         sample_num = len(index)
         batch_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(self.dst_train, index),
-                                                   batch_size=self.args.batch)
+                                                   batch_size=self.args.selection_batch)
 
         gradients = torch.zeros([sample_num, self.n_param]).to(self.args.device)
 
@@ -72,4 +72,4 @@ class Craig(CoresetMethod):
                                                          n_samples=round(len(class_index) * self.fraction),
                                                          optimizer="lazy").fit_transform(matrix)
             weights = self.calc_weights(matrix, selection_result)
-        return torch.utils.data.Subset(self.dst_train, selection_result), selection_result, weights
+        return selection_result, weights

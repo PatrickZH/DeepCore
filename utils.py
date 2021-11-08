@@ -44,6 +44,7 @@ def train(train_loader, network, criterion, optimizer, scheduler, epoch, args):
 
 
 def test(test_loader, network, criterion, args):
+    network.no_grad = True
     batch_time = AverageMeter('Time', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
     top1 = AverageMeter('Acc@1', ':6.2f')
@@ -80,6 +81,7 @@ def test(test_loader, network, criterion, args):
                 top1=top1))
 
     print(' * Prec@1 {top1.avg:.3f}'.format(top1=top1))
+    network.no_grad = False
     return top1.avg
 
 

@@ -36,10 +36,9 @@ class kCenterGreedy(CoresetMethod):
                     model = models.__dict__[embedding_model.lower()](pretrained=True).to(args.device)
                     if args.channel != 3:
                         model.features[0] = nn.Conv2d(args.channel, 64, kernel_size=(3, 3), stride=(1, 1),
-                                                      padding=(1, 1)).to(
-                            args.device)
+                                                      padding=(1, 1)).to(args.device)
                 else:
-                    raise NotImplementedError("%s has not be implemented." % embedding_model)
+                    raise NotImplementedError("%s has not been implemented." % embedding_model)
 
                 # To use pretrained models provided by torchvision, samples will be resized to 224x224.
                 if args.im_size[0] != 224 or args.im_size[1] != 224:
@@ -59,11 +58,11 @@ class kCenterGreedy(CoresetMethod):
 
             self.matrix = torch.zeros([self.n_train, self.emb_dim], requires_grad=False).to(args.device)
 
-            data_loader = torch.utils.data.DataLoader(temp_dst_train, batch_size=args.batch)
+            data_loader = torch.utils.data.DataLoader(temp_dst_train, batch_size=args.selection_batch)
 
             i = 0
             for inputs, _ in data_loader:
-                self.matrix[i * args.batch:min((i + 1) * args.batch, self.n_train)] = model(inputs.to(args.device))
+                self.matrix[i * args.selection_batch:min((i + 1) * args.selection_batch, self.n_train)] = model(inputs.to(args.device))
                 i = i + 1
 
     def select(self, **kwargs):
@@ -101,4 +100,4 @@ class kCenterGreedy(CoresetMethod):
                                                                                       self.matrix[~select_result])
                 mins = torch.min(mins, dis_matrix[num_of_already_selected + i])
             indices = np.arange(self.n_train)
-        return torch.utils.data.Subset(self.dst_train, indices[select_result]), indices[select_result]
+        return indices[select_result]

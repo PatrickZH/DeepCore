@@ -154,15 +154,16 @@ class GradMatch(CoresetMethod):
 
     def calc_gradient(self, index=None, val=False):
         self.network.record_embedding = True
+        self.network.no_grad = True
         if val:
             batch_loader = torch.utils.data.DataLoader(
                 self.dst_val if index is None else torch.utils.data.Subset(self.dst_val, index),
-                batch_size=self.args.batch)
+                batch_size=self.args.selection_batch)
             sample_num = len(self.dst_val.targets) if index is None else len(index)
         else:
             batch_loader = torch.utils.data.DataLoader(
                 self.dst_train if index is None else torch.utils.data.Subset(self.dst_train, index),
-                batch_size=self.args.batch)
+                batch_size=self.args.selection_batch)
             sample_num = self.n_train if index is None else len(index)
 
         self.embedding_dim = self.network.get_last_layer().in_features
@@ -171,16 +172,17 @@ class GradMatch(CoresetMethod):
         for i, (input, targets) in enumerate(batch_loader):
             self.optimizer.zero_grad()
             outputs = self.network(input.to(self.args.device))
-            loss = self.criterion(torch.nn.functional.softmax(outputs, dim=1), targets.to(self.args.device))
+            loss = self.criterion(torch.nn.functional.softmax(outputs, dim=1), targets.to(self.args.device)).sum()
             batch_num = targets.shape[0]
-            bias_parameters_grads = torch.autograd.grad(loss.sum(), outputs, retain_graph=True)[0].cpu()
             with torch.no_grad():
+                bias_parameters_grads = torch.autograd.grad(loss.sum(), outputs, retain_graph=True)[0].cpu()
                 weight_parameters_grads = self.network.embedding.cpu().view(batch_num, 1, self.embedding_dim).repeat(1,self.args.num_classes,1) * bias_parameters_grads.view(
                 batch_num, self.args.num_classes, 1).repeat(1, 1, self.embedding_dim)
-                gradients[i * self.args.batch:min((i + 1) * self.args.batch, sample_num)] = torch.cat(
+                gradients[i * self.args.selection_batch:min((i + 1) * self.args.selection_batch, sample_num)] = torch.cat(
                 [bias_parameters_grads, weight_parameters_grads.flatten(1)], dim=1)
 
         self.network.record_embedding = False
+        self.network.no_grad = False
         return gradients
 
     def select(self, **kwargs):
@@ -225,4 +227,4 @@ class GradMatch(CoresetMethod):
                                                           nnz=self.coreset_size)
             selection_result = np.nonzero(cur_weights)[0]
             weights = cur_weights[selection_result]
-        return torch.utils.data.Subset(self.dst_train, selection_result), selection_result#, weights
+        return selection_result#, weights

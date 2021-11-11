@@ -5,7 +5,7 @@ import argparse
 import deepcore.nets as nets
 import deepcore.datasets as datasets
 import deepcore.methods as methods
-from utils import train, test
+from utils import train, test, str_to_bool
 from torchvision import models
 
 
@@ -41,7 +41,7 @@ def main():
                         "the number of training epochs to be preformed between two test epochs； a value of 0 means no test will be run (default: 1)")
     parser.add_argument("--test_fraction", '-tf', type=float, default=1., help="proportion of test dataset used for evaluating the model (default: 1.)")
     parser.add_argument('--optimizer', default="SGD", help='optimizer to use, e.g. SGD, Adam')
-    parser.add_argument("--nesterov", default=True, type=bool, help="if set nesterov")
+    parser.add_argument("--nesterov", default=True, type=str_to_bool, help="if set nesterov")
     parser.add_argument('--fraction', default=0.1, type=float, help='fraction of data to be selected (default: 0.1)')
     parser.add_argument('--seed', default=int(time.time() * 1000) % 100000, type=int, help="random seed")
     parser.add_argument("--selection_epochs", "-se", default=40, type=int,
@@ -52,13 +52,13 @@ def main():
                         metavar='W', help='weight decay whiling performing selection (default: 5e-4)',
                         dest='selection_weight_decay')
     parser.add_argument('--selection_optimizer', "-so", default="SGD", help='optimizer to use whiling performing selection, e.g. SGD, Adam')
-    parser.add_argument("--selection_nesterov", "-sn", default=True, type=bool, help="if set nesterov whiling performing selection")
+    parser.add_argument("--selection_nesterov", "-sn", default=True, type=str_to_bool, help="if set nesterov whiling performing selection")
     parser.add_argument('--selection_lr', '-slr', type=float, default=0.1, help='learning rate for selection')
     parser.add_argument("--selection_test_interval", '-sti', default=1, type=int, help=
     "the number of training epochs to be preformed between two test epochs during selection (default: 1)")
     parser.add_argument("--selection_test_fraction", '-stf', type=float, default=1.,
                         help="proportion of test dataset used for evaluating the model while preforming selection (default: 1.)")
-    parser.add_argument('--balance', default=True, type=bool, help="whether balance selection is performed per class")
+    parser.add_argument('--balance', default=True, type=str_to_bool, help="whether balance selection is performed per class")
 
     args = parser.parse_args()
     args.if_selection = True if args.if_selection == 'True' else False
@@ -108,7 +108,7 @@ def main():
             cc,ii,nnn,_,_,_,dst_pretrain,_=datasets.permutedMNIST(args.data_path)
             method = methods.__dict__[args.selection](dst_train, args, args.fraction, args.seed,
                                                       epochs=args.selection_epochs, selection_method='Entropy',
-                                                      specific_model="MLP", balance=args.balance, network=network,optimizer=optimizer, criterion=criterion, torchvision_pretrain=False,
+                                                      specific_model="LeNet", balance=args.balance, network=network,optimizer=optimizer, criterion=criterion, torchvision_pretrain=False,
                                                       fraction_pretrain=.4,dst_pretrain_dict={"channel":cc,"num_classes":nnn,"im_size":ii,"dst_train":dst_pretrain},
                                                       dst_test=dst_test)
             subset_ind = method.select()

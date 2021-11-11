@@ -11,6 +11,12 @@ class EmbeddingRecorder(nn.Module):
             self.embedding = x
         return x
 
+    def __enter__(self):
+        self.record_embedding = True
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.record_embedding = False
+
 
 def alexnet_forward(self, x: Tensor) -> Tensor:
     with set_grad_enabled(not self.no_grad):

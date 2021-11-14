@@ -3,7 +3,8 @@ from torch.autograd import grad
 from scipy.sparse.linalg import cg, LinearOperator
 import torch, copy
 import numpy as np
-from jax.api import jit
+#from jax.api import jit
+from jax import jit
 from neural_tangents import stax
 
 
@@ -260,13 +261,14 @@ class Bilevel(CoresetMethod):
             kernel_fn = lambda x, y: generate_resnet_ntk(x.transpose(0, 2, 3, 1), y.transpose(0, 2, 3, 1), skip=20)
         else:
             kernel_fn = lambda x, y: generate_cnn_ntk(
-                x.reshape(-1, self.args.im_size[0], self.args.im_size[0], self.args.channel),
-                y.reshape(-1, self.args.im_size[0], self.args.im_size[0], self.args.channel))
+                x.reshape(-1, self.args.im_size[0], self.args.im_size[1], self.args.channel),
+                y.reshape(-1, self.args.im_size[0], self.args.im_size[1], self.args.channel))
 
-        inds, weights = self.build_with_representer_proxy_batch(self.dst_train.train_data.cpu().numpy(),
-                                                                self.dst_train.targets.cpu().numpy(), self.coreset_size,
-                                                                kernel_fn,
+        loader = torch.utils.data.DataLoader(self.dst_train, batch_size=self.n_train)
+        for data, targets in loader:
+            pass
+        inds, weights = self.build_with_representer_proxy_batch(data.numpy(), targets.numpy(), self.coreset_size, kernel_fn,
                                                                 cache_kernel=True,
                                                                 start_size=10, inner_reg=1e-7)
 
-        return inds, weights
+        return inds#, weights

@@ -61,7 +61,7 @@ class _WideResNet(nn.Module):
         block = BasicBlock
         # 1st conv before any network block
         self.conv1 = nn.Conv2d(channel, nChannels[0], kernel_size=3, stride=1,
-                               padding=3 if channel == 3 else 1, bias=False)
+                               padding=3 if channel == 1 else 1, bias=False)
         # 1st block
         self.block1 = NetworkBlock(n, nChannels[0], nChannels[1], block, 1, drop_rate)
         # 2nd block
@@ -175,7 +175,7 @@ def WRN2810(channel: int, num_classes: int, im_size, record_embedding: bool = Fa
 
 def WRN282(channel: int, num_classes: int, im_size, record_embedding: bool = False, no_grad: bool = False,
            pretrained: bool = False):
-    return WideResNet('wrn292', channel, num_classes, im_size, record_embedding, no_grad, pretrained)
+    return WideResNet('wrn282', channel, num_classes, im_size, record_embedding, no_grad, pretrained)
 
 
 def WRN502(channel: int, num_classes: int, im_size, record_embedding: bool = False, no_grad: bool = False,

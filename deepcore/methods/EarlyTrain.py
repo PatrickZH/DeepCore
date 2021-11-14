@@ -118,7 +118,7 @@ class EarlyTrain(CoresetMethod):
             pretrained=self.torchvision_pretrain,
             im_size=(224, 224) if self.torchvision_pretrain else self.args.im_size).to(self.args.device)
         self.criterion = nn.CrossEntropyLoss().to(self.args.device)
-        self.criterion.__init__(reduce=False)
+        self.criterion.__init__()
 
         # Setup optimizer
         self.model_optimizer = torch.optim.__dict__[self.args.selection_optimizer](self.model.parameters(), lr=self.args.selection_lr,
@@ -193,3 +193,7 @@ class EarlyTrain(CoresetMethod):
 
     def finish_run(self):
         pass
+
+    def select(self, **kwargs):
+        selection_result = self.run()
+        return selection_result

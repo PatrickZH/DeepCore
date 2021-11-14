@@ -108,8 +108,8 @@ def main():
             cc,ii,nnn,_,_,_,dst_pretrain,_=datasets.permutedMNIST(args.data_path)
             method = methods.__dict__[args.selection](dst_train, args, args.fraction, args.seed,
                                                       epochs=args.selection_epochs, selection_method='Entropy',
-                                                      specific_model="LeNet", balance=args.balance, network=network,optimizer=optimizer, criterion=criterion, torchvision_pretrain=False,
-                                                      fraction_pretrain=.4,dst_pretrain_dict={"channel":cc,"num_classes":nnn,"im_size":ii,"dst_train":dst_pretrain},
+                                                      specific_model=None, balance=args.balance, network=network,optimizer=optimizer, criterion=criterion, torchvision_pretrain=False,
+                                                      fraction_pretrain=.3,dst_pretrain_dict={"channel":cc,"num_classes":nnn,"im_size":ii,"dst_train":dst_pretrain},
                                                       dst_test=dst_test)
             subset_ind = method.select()
             print(len(subset_ind))

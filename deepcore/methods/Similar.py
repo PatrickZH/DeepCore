@@ -80,13 +80,6 @@ class Similar(EarlyTrain):
                     # Instantiate a submodular function
                     submod_function = submodular_function.__dict__[self._function](index=c_indx, similarity_kernel=lambda a, b:cossim_np(gradients[a], gradients[b]))
                     submod_optimizer = submodular_optimizer.__dict__[self._greedy](args=self.args, index=c_indx, budget=round(self.fraction * len(c_indx)), already_selected=[])
-                    '''
-                    from line_profiler import LineProfiler
-                    lp = LineProfiler()
-                    lp_wrapper = lp(submod_optimizer.select)
-                    lp_wrapper(gain_function=submod_function.calc_gain,  update_state=submod_function.update_state)
-                    lp.print_stats()
-                    '''
 
                     c_selection_result = submod_optimizer.select(gain_function=submod_function.calc_gain,  update_state=submod_function.update_state)
                     selection_result = np.append(selection_result, c_selection_result)

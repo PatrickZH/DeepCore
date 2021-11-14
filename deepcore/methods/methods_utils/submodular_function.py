@@ -18,7 +18,7 @@ class SubmodularFunction(object):
             self.similarity_kernel = self._similarity_kernel(similarity_kernel)
         else:
             assert similarity_matrix.shape[0] == self.n and similarity_matrix.shape[1] == self.n
-            self.similarity_matrix = self._similarity_kernel(similarity_matrix)
+            self.similarity_matrix = similarity_matrix
             self.similarity_kernel = lambda a, b: self.similarity_matrix[np.ix_(a, b)]
 
     def _similarity_kernel(self, similarity_kernel):

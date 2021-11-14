@@ -1,75 +1,102 @@
-from .CoresetMethod import CoresetMethod
+from .EarlyTrain import EarlyTrain
 import torch
-from apricot.functions.facilityLocation import FacilityLocationSelection
+from .methods_utils import FacilityLocation, submodular_optimizer
 import numpy as np
-from .methods_utils import euclidean_dist_pair
+from .methods_utils.euclidean import euclidean_dist_pair_np
 
 
-class Craig(CoresetMethod):
-    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, network=None, optimizer=None, criterion=None,
-                 balance=True, **kwargs):
-        super().__init__(dst_train, args, fraction, random_seed)
-        self.n_train = len(dst_train.targets)
-        self.coreset_size = round(self.n_train * fraction)
-        if network is None or optimizer is None or criterion is None:
-            raise ValueError("Network, criterion or optimizer is not specified.")
-        self.network = network
-        self.optimizer = optimizer
-        self.criterion = criterion
+class Craig(EarlyTrain):
+    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200, specific_model=None,
+                 balance=True, greedy="LazyGreedy", **kwargs):
+        super().__init__(dst_train, args, fraction, random_seed, epochs, specific_model, **kwargs)
+      
+        self._greedy = greedy
         self.balance = balance
-        self.n_param = sum([p.view(-1).shape[0] for p in network.get_last_layer().parameters() if p.requires_grad])
 
-    def calc_gradient(self, index):
-        sample_num = len(index)
-        batch_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(self.dst_train, index),
-                                                   batch_size=self.args.selection_batch)
+    def before_train(self):
+        pass
 
-        gradients = torch.zeros([sample_num, self.n_param]).to(self.args.device)
+    def after_loss(self, outputs, loss, targets, batch_inds, epoch):
+        pass
 
-        i = 0
-        j = 0
-        for input, targets in batch_loader:
-            self.optimizer.zero_grad()
-            outputs = torch.nn.functional.softmax(self.network(input.to(self.args.device)), dim=1)
-            loss = self.criterion(outputs, targets.to(self.args.device))
+    def before_epoch(self):
+        pass
 
-            for loss_val in loss:
-                gradients[j:, ] = torch.cat(
-                    [torch.flatten(torch.autograd.grad(loss_val, p, retain_graph=True)[0]) for p in
-                     self.network.get_last_layer().parameters() if p.requires_grad])
-                j = j + 1
+    def after_epoch(self):
+        pass
 
-            i = i + 1
-        return euclidean_dist_pair(gradients)
+    def before_run(self):
+        pass
+
+    def num_classes_mismatch(self):
+        raise ValueError("num_classes of pretrain dataset does not match that of the training dataset.")
+
+    def while_update(self, outputs, loss, targets, epoch, batch_idx, batch_size):
+        if batch_idx % self.args.print_freq == 0:
+            print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f' % (
+                epoch, self.epochs, batch_idx + 1, (self.n_pretrain_size // batch_size) + 1, loss.item()))
+
+    def calc_gradient(self, index=None):
+        batch_loader = torch.utils.data.DataLoader(
+            self.dst_train if index is None else torch.utils.data.Subset(self.dst_train, index),
+            batch_size=self.args.selection_batch)
+        sample_num = len(self.dst_val.targets) if index is None else len(index)
+        self.embedding_dim = self.model.get_last_layer().in_features
+
+        gradients = []
+
+        for i, (input, targets) in enumerate(batch_loader):
+            self.model_optimizer.zero_grad()
+            outputs = self.model(input.to(self.args.device))
+            loss = self.criterion(torch.nn.functional.softmax(outputs.requires_grad_(True), dim=1), targets.to(self.args.device)).sum()
+            batch_num = targets.shape[0]
+            with torch.no_grad():
+                bias_parameters_grads = torch.autograd.grad(loss, outputs)[0]
+                weight_parameters_grads = self.model.embedding_recorder.embedding.view(batch_num, 1, self.embedding_dim).repeat(1,
+                                                                                                               self.args.num_classes,
+                                                                                                               1) * bias_parameters_grads.view(
+                    batch_num, self.args.num_classes, 1).repeat(1, 1, self.embedding_dim)
+                gradients.append(torch.cat([bias_parameters_grads, weight_parameters_grads.flatten(1)], dim=1).cpu().numpy())
+
+        gradients = np.concatenate(gradients, axis=0)
+        return euclidean_dist_pair_np(gradients)
 
     def calc_weights(self, matrix, result):
-        min_sample = torch.argmin(matrix[result], dim=0)
+        min_sample = np.argmin(matrix[result], axis=0)
         weights = np.zeros(len(result))
         for i in min_sample:
             weights[i] = weights[i] + 1
         return weights
 
-    def select(self, **kwargs):
+    def finish_run(self):
+        self.model.no_grad = True
+        with self.model.embedding_recorder:
+            if self.balance:
+                # Do selection by class
+                selection_result = np.array([], dtype=np.int32)
+                weights = np.array([])
+                for c in range(self.args.num_classes):
+                    class_index = np.arange(self.n_train)[self.dst_train.targets == c]
+                    matrix = -1. * self.calc_gradient(class_index)
+                    submod_function = FacilityLocation(index=class_index,  similarity_matrix=matrix)
+                    submod_optimizer = submodular_optimizer.__dict__[self._greedy](args=self.args, index=class_index, budget=round(self.fraction * len(class_index)))
 
-        if self.balance:
-            # Do selection by class
-            selection_result = []
-            weights = np.array([])
-            for c in range(self.args.num_classes):
-                class_index = np.arange(self.n_train)[self.dst_train.targets == c]
-                matrix = self.calc_gradient(class_index)
-                class_result = FacilityLocationSelection(random_state=self.random_seed, metric='precomputed',
-                                                         n_samples=round(len(class_index) * self.fraction),
-                                                         optimizer="lazy").fit_transform(matrix)
-                selection_result.append(class_index[class_result])
-                weights = np.append(weights, self.calc_weights(matrix, class_result))
-        else:
-            matrix = torch.zeros([self.n_train, self.n_train])
-            for c in range(self.args.num_classes):
-                class_index = np.arange(self.n_train)[self.dst_train.targets == c]
-                matrix[class_index, class_index] = self.calc_gradient(class_index)
-            selection_result = FacilityLocationSelection(random_state=self.random_seed, metric='precomputed',
-                                                         n_samples=round(len(class_index) * self.fraction),
-                                                         optimizer="lazy").fit_transform(matrix)
-            weights = self.calc_weights(matrix, selection_result)
-        return selection_result, weights
+                    class_result = submod_optimizer.select(gain_function=submod_function.calc_gain,  update_state=submod_function.update_state)
+                    selection_result = np.append(selection_result, class_result)
+                    weights = np.append(weights, self.calc_weights(matrix, np.isin(class_index, class_result)))
+            else:
+                matrix = np.zeros([self.n_train, self.n_train])
+                all_index = np.arange(self.n_train)
+                for c in range(self.args.num_classes):
+                    class_index = np.arange(self.n_train)[self.dst_train.targets == c]
+                    matrix[np.ix_(class_index, class_index)] = -1. * self.calc_gradient(class_index)
+                submod_function = FacilityLocation(index=all_index, similarity_matrix=matrix)
+                submod_optimizer = submodular_optimizer.__dict__[self._greedy](args=self.args, index=all_index, budget=self.coreset_size)
+                selection_result = submod_optimizer.select(gain_function=submod_function.calc_gain,  update_state=submod_function.update_state)
+                weights = self.calc_weights(matrix, selection_result)
+        self.model.no_grad = False
+        return selection_result#, weights
+    
+    def select(self, **kwargs):
+        selection_result = self.run()
+        return selection_result

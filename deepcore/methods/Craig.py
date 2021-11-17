@@ -9,7 +9,9 @@ class Craig(EarlyTrain):
     def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200, specific_model=None,
                  balance=True, greedy="LazyGreedy", **kwargs):
         super().__init__(dst_train, args, fraction, random_seed, epochs, specific_model, **kwargs)
-      
+
+        if greedy not in submodular_optimizer.optimizer_choices:
+            raise ModuleNotFoundError("Greedy optimizer not found.")
         self._greedy = greedy
         self.balance = balance
 
@@ -92,7 +94,7 @@ class Craig(EarlyTrain):
                     matrix[np.ix_(class_index, class_index)] = -1. * self.calc_gradient(class_index)
                 submod_function = FacilityLocation(index=all_index, similarity_matrix=matrix)
                 submod_optimizer = submodular_optimizer.__dict__[self._greedy](args=self.args, index=all_index, budget=self.coreset_size)
-                selection_result = submod_optimizer.select(gain_function=submod_function.calc_gain,  update_state=submod_function.update_state)
+                selection_result = submod_optimizer.select(gain_function=submod_function.calc_gain, update_state=submod_function.update_state)
                 weights = self.calc_weights(matrix, selection_result)
         self.model.no_grad = False
         return selection_result#, weights

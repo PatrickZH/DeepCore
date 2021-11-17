@@ -1,6 +1,8 @@
 import numpy as np
 
 
+optimizer_choices = ["NaiveGreedy", "LazyGreedy", "StochasticGreedy", "ApproximateLazyGreedy"]
+
 class optimizer(object):
     def __init__(self, args, index, budget:int, already_selected=[]):
         self.args = args
@@ -34,7 +36,7 @@ class NaiveGreedy(optimizer):
             selected[current_selection] = True
             greedy_gain[current_selection] = -np.inf
             if update_state is not None:
-                update_state(np.array([current_selection]), **kwargs)
+                update_state(np.array([current_selection]), selected, **kwargs)
         return self.index[selected]
 
 
@@ -66,7 +68,7 @@ class LazyGreedy(optimizer):
                     greedy_gain[cur_max_element] = -np.inf
 
                     if update_state is not None:
-                        update_state(np.array([cur_max_element]), **kwargs)
+                        update_state(np.array([cur_max_element]), selected, **kwargs)
                     break
                 new_gain = gain_function(np.array([cur_max_element]), selected, **kwargs)[0]
                 greedy_gain[cur_max_element] = new_gain
@@ -107,7 +109,7 @@ class StochasticGreedy(optimizer):
             selected[subset[current_selection]] = True
             greedy_gain[subset[current_selection]] = -np.inf
             if update_state is not None:
-                update_state(np.array([subset[current_selection]]), **kwargs)
+                update_state(np.array([subset[current_selection]]), selected, **kwargs)
         return self.index[selected]
 
 
@@ -142,7 +144,7 @@ class ApproximateLazyGreedy(optimizer):
                     greedy_gain[cur_max_element] = -np.inf
 
                     if update_state is not None:
-                        update_state(np.array([cur_max_element]), **kwargs)
+                        update_state(np.array([cur_max_element]), selected, **kwargs)
                     break
                 else:
                     greedy_gain[cur_max_element] = new_gain

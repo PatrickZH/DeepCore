@@ -57,7 +57,7 @@ class FacilityLocation(SubmodularFunction):
         gain_matrix = np.maximum(0., self.similarity_kernel(self.all_idx, idx_gain) - self.cur_max.reshape(-1, 1))
         return gain_matrix.sum(axis=0)
 
-    def update_state(self, new_selection, **kwargs):
+    def update_state(self, new_selection, total_selected, **kwargs):
         self.cur_max = np.maximum(self.cur_max, np.max(self.similarity_kernel(self.all_idx, new_selection), axis=1))
         #self.cur_max = np.max(np.append(self.cur_max.reshape(-1, 1), self.similarity_kernel(self.all_idx, new_selection), axis=1), axis=1)
 
@@ -94,7 +94,7 @@ class GraphCut(SubmodularFunction):
         gain = -2. * np.sum(self.similarity_kernel(selected, idx_gain), axis=0) + self.lam * self.sim_matrix_cols_sum[idx_gain]
         return gain
 
-    def update_state(self, new_selection, **kwargs):
+    def update_state(self, new_selection, total_selected, **kwargs):
         pass
 
 
@@ -127,5 +127,5 @@ class LogDeterminant(SubmodularFunction):
         sim_selected = self.similarity_kernel(selected, selected)
         return (np.dot(sim_idx_gain, np.linalg.pinv(sim_selected)) * sim_idx_gain).sum(-1)
 
-    def update_state(self, new_selection, **kwargs):
+    def update_state(self, new_selection, total_selected, **kwargs):
         pass

@@ -1,11 +1,12 @@
 from .CoresetMethod import CoresetMethod
+from .methods_utils import submodular_optimizer
 import torch
 import numpy as np
 
 
 class Glister(CoresetMethod):
     def __init__(self, dst_train, args, fraction=0.5, random_seed=None, network=None, optimizer=None, criterion=None,
-                 balance=True, eta=None, dst_val=None, **kwargs):
+                 balance=True, greedy="LazyGreedy", eta=None, dst_val=None, **kwargs):
         super().__init__(dst_train, args, fraction, random_seed)
         self.balance = balance
         self.eta = args.lr if eta is None else eta
@@ -19,6 +20,10 @@ class Glister(CoresetMethod):
 
         self.dst_val = dst_train if dst_val is None else dst_val
         self.n_val = len(self.dst_val)
+
+        if greedy not in submodular_optimizer.optimizer_choices:
+            raise ModuleNotFoundError("Greedy optimizer not found.")
+        self._greedy = greedy
 
     def calc_gradient(self, index=None, val=False, record_val_detail=False):
         '''
@@ -96,9 +101,9 @@ class Glister(CoresetMethod):
             greedy_gain[current_selection] = -1.
             if sum(selected) < budget:
                 self.update_val_gradients(selected)
-        return index[selected], [1] * budget
+        return index[selected]
 
-    def update_val_gradients(self, selected_for_train):
+    def update_val_gradients(self, new_selection, selected_for_train):
 
         sum_selected_train_gradients = torch.mean(self.train_grads[selected_for_train], dim=0)
 
@@ -130,21 +135,24 @@ class Glister(CoresetMethod):
         self.val_indx = np.arange(self.n_val)
         if self.balance:
             selection_result = np.array([], dtype=np.int64)
-            weights = np.array([], dtype=np.float32)
+            #weights = np.array([], dtype=np.float32)
             for c in range(self.num_classes):
                 c_indx = self.train_indx[self.dst_train.targets == c]
                 self.calc_gradient(index=c_indx)
                 c_val_inx = self.val_indx[self.dst_val.targets == c]
                 self.calc_gradient(index=c_val_inx, val=True, record_val_detail=True)
-                c_selection_result, c_weights = self.greedy_select(index=c_indx,
-                                                                   budget=round(self.fraction * len(c_indx)))
+                submod_optimizer = submodular_optimizer.__dict__[self._greedy](args=self.args, index=c_indx, budget=round(self.fraction * len(c_indx)))
+                c_selection_result = submod_optimizer.select(gain_function=lambda idx_gain, selected, **kwargs: torch.matmul(self.train_grads[idx_gain], self.val_grads.view(-1, 1)).detach().cpu().numpy().flatten(), upadate_state=self.update_val_gradients)
+                #c_selection_result = self.greedy_select(index=c_indx, budget=round(self.fraction * len(c_indx)))
                 selection_result = np.append(selection_result, c_selection_result)
-                weights = np.append(weights, c_weights)
+                #weights = np.append(weights, c_weights)
 
         else:
             self.calc_gradient()
             self.calc_gradient(val=True, record_val_detail=True)
-            selection_result, weights = self.greedy_select(index=np.arange(self.n_train), budget=self.coreset_size)
+            #selection_result = self.greedy_select(index=np.arange(self.n_train), budget=self.coreset_size)
+            submod_optimizer = submodular_optimizer.__dict__[self._greedy](args=self.args, index=np.arange(self.n_train), budget=self.coreset_size)
+            selection_result = submod_optimizer.select(gain_function=lambda idx_gain, selected, **kwargs: torch.matmul(self.train_grads[idx_gain], self.val_grads.view(-1, 1)).detach().cpu().numpy().flatten(), upadate_state=self.update_val_gradients)
 
         self.network.embedding_recorder.record_embedding = False
         self.network.no_grad = False

@@ -105,12 +105,12 @@ def main():
                                                          weight_decay=args.weight_decay, nesterov=args.nesterov)
 
         if args.if_selection:
-            cc,ii,nnn,_,_,_,dst_pretrain,_=datasets.permutedMNIST(args.data_path)
+            #cc,ii,nnn,_,_,_,dst_pretrain,_=datasets.permutedMNIST(args.data_path)
             method = methods.__dict__[args.selection](dst_train, args, args.fraction, args.seed,
                                                       epochs=args.selection_epochs, selection_method='Entropy',
                                                       specific_model=None, balance=args.balance, network=network,optimizer=optimizer, criterion=criterion, torchvision_pretrain=False,
-                                                      fraction_pretrain=.3,dst_pretrain_dict={"channel":cc,"num_classes":nnn,"im_size":ii,"dst_train":dst_pretrain},
-                                                      dst_test=dst_test)
+                                                      fraction_pretrain=.3,#dst_pretrain_dict={"channel":cc,"num_classes":nnn,"im_size":ii,"dst_train":dst_pretrain},
+                                                      dst_test=dst_test,metric="euclidean")
             subset_ind = method.select()
             print(len(subset_ind))
             subset = torch.utils.data.Subset(dst_train, subset_ind)

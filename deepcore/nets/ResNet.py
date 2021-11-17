@@ -123,7 +123,7 @@ def ResNet(arch: str, channel: int, num_classes: int, im_size, record_embedding:
         if channel != 3:
             net.conv1 = nn.Conv2d(channel, 64, kernel_size=7, stride=2, padding=3, bias=False)
 
-        net.real_fc = net.fc if num_classes != 1000 else nn.Linear(net.fc.in_features, num_classes)
+        net.real_fc = net.fc if num_classes == 1000 else nn.Linear(net.fc.in_features, num_classes)
         net.embedding_recorder = EmbeddingRecorder(record_embedding)
         net.fc = nn.Sequential(net.embedding_recorder, net.real_fc)
 
@@ -142,7 +142,7 @@ def ResNet(arch: str, channel: int, num_classes: int, im_size, record_embedding:
         if channel != 3:
             net.conv1 = nn.Conv2d(channel, 64, kernel_size=7, stride=2, padding=3, bias=False)
 
-        net.real_fc = net.fc if num_classes != 1000 else nn.Linear(net.fc.in_features, num_classes)
+        net.real_fc = net.fc if num_classes == 1000 else nn.Linear(net.fc.in_features, num_classes)
         net.embedding_recorder = EmbeddingRecorder(record_embedding)
         net.fc = nn.Sequential(net.embedding_recorder, net.real_fc)
 

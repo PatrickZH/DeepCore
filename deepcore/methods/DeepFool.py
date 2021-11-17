@@ -6,11 +6,10 @@ import numpy as np
 class DeepFool(EarlyTrain):
     def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200,
                  specific_model=None, balance: bool = False, max_iter: int = 50, **kwargs):
-        super().__init__(dst_train, args, fraction, random_seed, epochs, specific_model)
+        super().__init__(dst_train, args, fraction, random_seed, epochs, specific_model, **kwargs)
 
         self.balance = balance
         self.max_iter = max_iter
-
 
     def num_classes_mismatch(self):
         raise ValueError("num_classes of pretrain dataset does not match that of the training dataset.")

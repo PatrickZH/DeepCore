@@ -8,6 +8,8 @@ class Similar(EarlyTrain):
     def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200, specific_model=None, balance=False, function="LogDeterminant", greedy="ApproximateLazyGreedy", metric="cossim", **kwargs):
         super(Similar, self).__init__(dst_train, args, fraction, random_seed, epochs, specific_model, **kwargs)
 
+        if greedy not in submodular_optimizer.optimizer_choices:
+            raise ModuleNotFoundError("Greedy optimizer not found.")
         self._greedy = greedy
         self._metric = metric
         self._function = function
@@ -81,7 +83,7 @@ class Similar(EarlyTrain):
                     submod_function = submodular_function.__dict__[self._function](index=c_indx, similarity_kernel=lambda a, b:cossim_np(gradients[a], gradients[b]))
                     submod_optimizer = submodular_optimizer.__dict__[self._greedy](args=self.args, index=c_indx, budget=round(self.fraction * len(c_indx)), already_selected=[])
 
-                    c_selection_result = submod_optimizer.select(gain_function=submod_function.calc_gain,  update_state=submod_function.update_state)
+                    c_selection_result = submod_optimizer.select(gain_function=submod_function.calc_gain, update_state=submod_function.update_state)
                     selection_result = np.append(selection_result, c_selection_result)
             else:
                 # Calculate gradients into a matrix

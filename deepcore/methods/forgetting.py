@@ -66,7 +66,7 @@ class forgetting(EarlyTrain):
         self.run()
 
         if not self.balance:
-            top_examples = self.train_indx[np.argsort(self.forgetting_events)][::-1][:self.coreset_size]
+            top_examples = self.train_indx[np.argsort(self.forgetting_events.cpu().numpy())][::-1][:self.coreset_size]
         else:
             top_examples = np.array([], dtype=np.int64)
             for c in range(self.num_classes):
@@ -75,4 +75,4 @@ class forgetting(EarlyTrain):
                 top_examples = np.append(top_examples, c_indx[np.argsort(self.forgetting_events[c_indx].cpu().numpy())[::-1][:budget]])
 
 
-        return top_examples
+        return {"indices": top_examples}

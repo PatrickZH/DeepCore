@@ -50,7 +50,7 @@ class uncertainty(EarlyTrain):
                                                                :round(len(class_index) * self.fraction)])
         else:
             selection_result = np.argsort(self.rank_uncertainty())[::-1][:self.coreset_size]
-        return selection_result
+        return {"indices": selection_result}
 
     def rank_uncertainty(self, index=None):
         with torch.no_grad():

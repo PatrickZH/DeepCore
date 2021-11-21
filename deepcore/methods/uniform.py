@@ -1,5 +1,4 @@
 import numpy as np
-from torch.utils.data import Subset
 from .CoresetMethod import CoresetMethod
 
 
@@ -30,4 +29,4 @@ class uniform(CoresetMethod):
         return  self.index
 
     def select(self, **kwargs):
-        return self.select_balance() if self.balance else self.select_no_balance()
+        return {"indices": self.select_balance() if self.balance else self.select_no_balance()}

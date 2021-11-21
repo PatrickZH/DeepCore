@@ -63,9 +63,9 @@ def k_center_greedy(matrix, budget: int, metric, device, random_seed=None, index
 
 
 class kCenterGreedy(EarlyTrain):
-    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200,
-                 specific_model=None, balance: bool = False, already_selected=[], metric="euclidean", **kwargs):
-        super().__init__(dst_train, args, fraction, random_seed, epochs, specific_model, **kwargs)
+    def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=0,
+                 specific_model=None, balance: bool = False, already_selected=[], metric="euclidean", torchvision_pretrain: bool = True, **kwargs):
+        super().__init__(dst_train, args, fraction, random_seed, epochs=epochs, specific_model=specific_model, torchvision_pretrain=torchvision_pretrain **kwargs)
 
         if already_selected.__len__() != 0:
             if min(already_selected) < 0 or max(already_selected) >= self.n_train:
@@ -133,7 +133,7 @@ class kCenterGreedy(EarlyTrain):
             selection_result = k_center_greedy(self.construct_matrix(), budget=self.coreset_size,
                                     metric=self.metric, device=self.args.device, random_seed=self.random_seed,
                                      already_selected=self.already_selected, print_freq=self.args.print_freq)
-        return selection_result
+        return {"indices": selection_result}
 
     def select(self, **kwargs):
         selection_result = self.run()

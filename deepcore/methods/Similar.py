@@ -96,7 +96,7 @@ class Similar(EarlyTrain):
                 selection_result = submod_optimizer.select(gain_function=submod_function.calc_gain, update_state=submod_function.update_state)
 
             self.model.no_grad = False
-        return selection_result
+        return {"indices": selection_result}
 
     def select(self, **kwargs):
         selection_result = self.run()

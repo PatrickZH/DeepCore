@@ -54,8 +54,18 @@ class FacilityLocation(SubmodularFunction):
         return _func
 
     def calc_gain(self, idx_gain, selected, **kwargs):
-        gain_matrix = np.maximum(0., self.similarity_kernel(self.all_idx, idx_gain) - self.cur_max.reshape(-1, 1))
-        return gain_matrix.sum(axis=0)
+        gains = np.maximum(0., self.similarity_kernel(self.all_idx, idx_gain) - self.cur_max.reshape(-1, 1)).sum(axis=0)
+        return gains
+
+    def calc_gain_batch(self, idx_gain, selected, **kwargs):
+        batch_idx = ~self.all_idx
+        batch_idx[0:kwargs["batch"]] = True
+        gains = np.maximum(0., self.similarity_kernel(batch_idx, idx_gain) - self.cur_max[batch_idx].reshape(-1, 1)).sum(axis=0)
+        for i in range(kwargs["batch"], self.n, kwargs["batch"]):
+            batch_idx = ~self.all_idx
+            batch_idx[i * kwargs["batch"]:(i + 1) * kwargs["batch"]] = True
+            gains += np.maximum(0., self.similarity_kernel(batch_idx, idx_gain) - self.cur_max[batch_idx].reshape(-1,1)).sum(axis=0)
+        return gains
 
     def update_state(self, new_selection, total_selected, **kwargs):
         self.cur_max = np.maximum(self.cur_max, np.max(self.similarity_kernel(self.all_idx, new_selection), axis=1))

@@ -2,7 +2,18 @@ import time, torch
 from argparse import ArgumentTypeError
 
 
-def train(train_loader, network, criterion, optimizer, scheduler, epoch, args):
+class WeightedSubset(torch.utils.data.Subset):
+    def __init__(self, dataset, indices, weights) -> None:
+        self.dataset = dataset
+        assert len(indices) == len(weights)
+        self.indices = indices
+        self.weights = weights
+    def __getitem__(self, idx):
+        if isinstance(idx, list):
+            return self.dataset[[self.indices[i] for i in idx]], self.weights[[i for i in idx]]
+        return self.dataset[self.indices[idx]], self.weights[idx]
+
+def train(train_loader, network, criterion, optimizer, scheduler, epoch, args, if_weighted: bool=False):
     """Train for one epoch on the training set"""
     batch_time = AverageMeter('Time', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
@@ -12,13 +23,22 @@ def train(train_loader, network, criterion, optimizer, scheduler, epoch, args):
     network.train()
 
     end = time.time()
-    for i, (input, target) in enumerate(train_loader):
-        target = target.cuda(non_blocking=True)
-        input = input.cuda(non_blocking=True)
+    for i, contents in enumerate(train_loader):
+        if if_weighted:
+            target = contents[0][1].to(args.device)
+            input = contents[0][0].to(args.device)
 
-        # compute output
-        output = network(input)
-        loss = criterion(output, target)
+            # compute output
+            output = network(input)
+            weights = contents[1].to(args.device).requires_grad_(False)
+            loss = torch.sum(criterion(output, target) * weights) / torch.sum(weights)
+        else:
+            target = contents[1].to(args.device)
+            input = contents[0].to(args.device)
+
+            # compute output
+            output = network(input)
+            loss = criterion(output, target).mean()
 
         # measure accuracy and record loss
         prec1 = accuracy(output.data, target, topk=(1,))[0]
@@ -62,7 +82,7 @@ def test(test_loader, network, criterion, args):
         with torch.no_grad():
             output = network(input)
 
-        loss = criterion(output, target)
+        loss = criterion(output, target).mean()
 
         # measure accuracy and record loss
         prec1 = accuracy(output.data, target, topk=(1,))[0]
@@ -136,3 +156,7 @@ def str_to_bool(v):
         return False
     else:
         raise ArgumentTypeError('Boolean value expected.')
+
+def save_checkpoint(state, path, epoch, prec):
+    print("Saving checkpoint for epoch %d, with Prec@1 %f." % (epoch, prec))
+    torch.save(state, path)

@@ -283,5 +283,5 @@ class Bilevel(CoresetMethod):
         inds, weights = lp_wrapper(data.numpy(), targets.numpy(), self.coreset_size, kernel_fn, cache_kernel=False, start_size=10, inner_reg=1e-7)
         lp.print_stats()
         '''
-        return inds#, weights
+        return {"indices": inds, "weights": weights}
 

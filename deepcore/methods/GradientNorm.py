@@ -46,14 +46,14 @@ class GradientNorm(EarlyTrain):
                 self.norm_matrix[index, epoch] = torch.norm(
                     torch.cat([torch.flatten(p.grad) for p in self.model.parameters() if p.requires_grad]), p=2)
         else:
-            embedding_dim = self.model.embedding.shape[1]
+            embedding_dim = self.model.get_last_layer().in_features
             batch_num = len(batch_inds)
             loss = loss.sum()
             with torch.no_grad():
                 bias_parameters_grads = torch.autograd.grad(loss, outputs, retain_graph=True)[0]
-                # weight_parameters_grads = self.model.embedding.view(batch_num, 1, embedding_dim).repeat(1, self.args.num_classes, 1)*bias_parameters_grads.view(batch_num, self.args.num_classes, 1).repeat(1, 1, embedding_dim)
+                # weight_parameters_grads = self.model.embedding_recorder.embedding.view(batch_num, 1, embedding_dim).repeat(1, self.args.num_classes, 1)*bias_parameters_grads.view(batch_num, self.args.num_classes, 1).repeat(1, 1, embedding_dim)
                 self.norm_matrix[batch_inds, epoch] = torch.norm(torch.cat([bias_parameters_grads, (
-                        self.model.embedding.view(batch_num, 1, embedding_dim).repeat(1, self.args.num_classes,
+                        self.model.embedding_recorder.embedding.view(batch_num, 1, embedding_dim).repeat(1, self.args.num_classes,
                                                                                       1) * bias_parameters_grads.view(
                     batch_num, self.args.num_classes, 1).repeat(1, 1, embedding_dim)).view(batch_num, -1)], dim=1),
                                                              dim=1, p=2)
@@ -67,10 +67,10 @@ class GradientNorm(EarlyTrain):
         # Initialize a matrix to save norms of each sample
         self.norm_matrix = torch.zeros([self.n_train, self.epochs], requires_grad=False).to(self.args.device)
 
-        self.model.record_embedding = True  # recording embedding vector
+        self.model.embedding_recorder.record_embedding = True  # recording embedding vector
 
-    def finish_train(self):
-        self.model.record_embedding = False
+    def finish_run(self):
+        self.model.embedding_recorder.record_embedding = False
 
     def select(self, **kwargs):
         self.run()
@@ -84,4 +84,4 @@ class GradientNorm(EarlyTrain):
                 budget = round(self.fraction * len(c_indx))
                 top_examples = np.append(top_examples, c_indx[np.argsort(self.norm_mean[c_indx])[::-1][:budget]])
 
-        return top_examples
+        return {"indices": top_examples}

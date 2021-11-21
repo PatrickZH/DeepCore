@@ -75,7 +75,6 @@ class EarlyTrain(CoresetMethod):
         batch_size = self.args.selection_batch
 
         for batch_idx, batch_start_ind in enumerate(range(0, self.n_pretrain_size, batch_size)):
-
             # Get trainset indices for batch
             batch_inds = trainset_permutation_inds[batch_start_ind:
                                                    batch_start_ind + batch_size]
@@ -121,17 +120,24 @@ class EarlyTrain(CoresetMethod):
         self.criterion.__init__()
 
         # Setup optimizer
-        self.model_optimizer = torch.optim.__dict__[self.args.selection_optimizer](self.model.parameters(), lr=self.args.selection_lr,
+        if self.args.selection_optimizer == "SGD":
+            self.model_optimizer = torch.optim.SGD(self.model.parameters(), lr=self.args.selection_lr,
+                                                   momentum=self.args.selection_momentum,
+                                                   weight_decay=self.args.selection_weight_decay,
+                                                   nesterov=self.args.selection_nesterov)
+        elif self.args.selection_optimizer == "Adam":
+            self.model_optimizer = torch.optim.Adam(self.model.parameters(), lr=self.args.selection_lr, weight_decay=self.args.selection_weight_decay)
+        else:
+            self.model_optimizer = torch.optim.__dict__[self.args.selection_optimizer](self.model.parameters(), lr=self.args.selection_lr,
                                                                          momentum=self.args.selection_momentum,
                                                                          weight_decay=self.args.selection_weight_decay,
                                                                          nesterov=self.args.selection_nesterov)
 
         self.before_run()
 
-        list_of_train_idx = np.random.choice(np.arange(self.n_pretrain if self.if_dst_pretrain else self.n_train),
-                                             self.n_pretrain_size, replace=False)
-
         for epoch in range(self.epochs):
+            list_of_train_idx = np.random.choice(np.arange(self.n_pretrain if self.if_dst_pretrain else self.n_train),
+                                                 self.n_pretrain_size, replace=False)
             self.before_epoch()
             self.train(epoch, list_of_train_idx)
             if self.dst_test is not None and self.args.selection_test_interval > 0 and (epoch+1) % self.args.selection_test_interval == 0:

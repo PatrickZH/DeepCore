@@ -184,7 +184,7 @@ class GradMatch(EarlyTrain):
                 selection_result = np.nonzero(cur_weights)[0]
                 weights = cur_weights[selection_result]
         self.model.no_grad = False
-        return selection_result#, weights
+        return {"indices": selection_result, "weights": weights}
 
     def select(self, **kwargs):
         selection_result = self.run()

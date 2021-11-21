@@ -90,7 +90,7 @@ class herding(EarlyTrain):
                         budget=round(self.fraction * len(class_index)), index=class_index))
         else:
             selection_result = self.herding(self.construct_matrix(), budget=self.coreset_size)
-        return selection_result
+        return {"indices": selection_result}
 
     def select(self, **kwargs):
         selection_result = self.run()

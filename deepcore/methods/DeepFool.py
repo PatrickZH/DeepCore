@@ -43,7 +43,7 @@ class DeepFool(EarlyTrain):
                 selection_result = np.append(selection_result, r[class_index].argsort()[:round(len(class_index) * self.fraction)])
         else:
             selection_result = r.argsort()[:self.coreset_size]
-        return selection_result
+        return {"indices": selection_result}
 
     def deep_fool(self, inputs):
         # Here, start running DeepFool algorithm.

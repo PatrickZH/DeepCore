@@ -65,7 +65,7 @@ def k_center_greedy(matrix, budget: int, metric, device, random_seed=None, index
 class kCenterGreedy(EarlyTrain):
     def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=0,
                  specific_model=None, balance: bool = False, already_selected=[], metric="euclidean", torchvision_pretrain: bool = True, **kwargs):
-        super().__init__(dst_train, args, fraction, random_seed, epochs=epochs, specific_model=specific_model, torchvision_pretrain=torchvision_pretrain **kwargs)
+        super().__init__(dst_train, args, fraction, random_seed, epochs=epochs, specific_model=specific_model, torchvision_pretrain=torchvision_pretrain, **kwargs)
 
         if already_selected.__len__() != 0:
             if min(already_selected) < 0 or max(already_selected) >= self.n_train:
@@ -118,6 +118,7 @@ class kCenterGreedy(EarlyTrain):
     def before_run(self):
         self.emb_dim = self.model.get_last_layer().in_features
 
+    """
     def finish_run(self):
         if self.balance:
             selection_result = np.array([], dtype=np.int32)
@@ -130,11 +131,38 @@ class kCenterGreedy(EarlyTrain):
                             already_selected=self.already_selected[np.in1d(self.already_selected, class_index)],
                                                                             print_freq=self.args.print_freq))
         else:
-            selection_result = k_center_greedy(self.construct_matrix(), budget=self.coreset_size,
+            matrix = self.construct_matrix()
+            del self.model
+            selection_result = k_center_greedy(matrix, budget=self.coreset_size,
                                     metric=self.metric, device=self.args.device, random_seed=self.random_seed,
                                      already_selected=self.already_selected, print_freq=self.args.print_freq)
         return {"indices": selection_result}
+    """
 
     def select(self, **kwargs):
-        selection_result = self.run()
-        return selection_result
+        self.run()
+        if self.balance:
+            selection_result = np.array([], dtype=np.int32)
+            for c in range(self.args.num_classes):
+                class_index = np.arange(self.n_train)[self.dst_train.targets == c]
+
+                selection_result = np.append(selection_result, k_center_greedy(self.construct_matrix(class_index),
+                                                                               budget=round(
+                                                                                   self.fraction * len(class_index)),
+                                                                               metric=self.metric,
+                                                                               device=self.args.device,
+                                                                               random_seed=self.random_seed,
+                                                                               index=class_index,
+                                                                               already_selected=self.already_selected[
+                                                                                   np.in1d(self.already_selected,
+                                                                                           class_index)],
+                                                                               print_freq=self.args.print_freq))
+        else:
+            matrix = self.construct_matrix()
+            del self.model_optimizer
+            del self.model
+            selection_result = k_center_greedy(matrix, budget=self.coreset_size,
+                                               metric=self.metric, device=self.args.device,
+                                               random_seed=self.random_seed,
+                                               already_selected=self.already_selected, print_freq=self.args.print_freq)
+        return {"indices": selection_result}

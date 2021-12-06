@@ -1,4 +1,4 @@
-# from .Bilevel import *
+from .Bilevel import *
 from .ContextualDiversity import *
 from .Contrastive import *
 from .CoresetMethod import *

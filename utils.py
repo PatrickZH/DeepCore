@@ -24,6 +24,7 @@ def train(train_loader, network, criterion, optimizer, scheduler, epoch, args, i
 
     end = time.time()
     for i, contents in enumerate(train_loader):
+        optimizer.zero_grad()
         if if_weighted:
             target = contents[0][1].to(args.device)
             input = contents[0][0].to(args.device)
@@ -46,7 +47,7 @@ def train(train_loader, network, criterion, optimizer, scheduler, epoch, args, i
         top1.update(prec1.item(), input.size(0))
 
         # compute gradient and do SGD step
-        optimizer.zero_grad()
+        #optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         scheduler.step()
@@ -75,8 +76,8 @@ def test(test_loader, network, criterion, args):
 
     end = time.time()
     for i, (input, target) in enumerate(test_loader):
-        target = target.cuda(non_blocking=True)
-        input = input.cuda(non_blocking=True)
+        target = target.to(args.device)
+        input = input.to(args.device)
 
         # compute output
         with torch.no_grad():
@@ -158,5 +159,5 @@ def str_to_bool(v):
         raise ArgumentTypeError('Boolean value expected.')
 
 def save_checkpoint(state, path, epoch, prec):
-    print("Saving checkpoint for epoch %d, with Prec@1 %f." % (epoch, prec))
+    print("=> Saving checkpoint for epoch %d, with Prec@1 %f." % (epoch, prec))
     torch.save(state, path)

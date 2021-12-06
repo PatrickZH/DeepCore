@@ -22,8 +22,7 @@ def main():
     parser.add_argument('--epochs', default=200, type=int, help='number of total epochs to run')
     parser.add_argument('--data_path', type=str, default='data', help='dataset path')
     parser.add_argument('--gpu', default=None, nargs="+", type=int, help='GPU id to use')
-    parser.add_argument('--print_freq', '-p', default=20, type=int,
-                        help='print frequency (default: 20)')
+    parser.add_argument('--print_freq', '-p', default=20, type=int, help='print frequency (default: 20)')
     parser.add_argument('--fraction', default=0.1, type=float, help='fraction of data to be selected (default: 0.1)')
     parser.add_argument('--seed', default=int(time.time() * 1000) % 100000, type=int, help="random seed")
 
@@ -76,6 +75,8 @@ def main():
     parser.add_argument('--save_path', "-sp", type=str, default='', help='path to save results (default: do not save)')
     parser.add_argument('--resume', '-r', type=str, default='', help="path to latest checkpoint (default: do not load)")
 
+    parser.add_argument("--aa", type=str, default="")
+    parser.add_argument("--bb", type=str, default="")
 
     args = parser.parse_args()
     args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -97,14 +98,14 @@ def main():
     if args.resume !="":
         # Load checkpoint
         try:
-            print("=> loading checkpoint '{}'".format(args.resume))
-            checkpoint = torch.load(args.resume)
+            print("=> Loading checkpoint '{}'".format(args.resume))
+            checkpoint = torch.load(args.resume, map_location=args.device)
             assert {"exp", "epoch", "state_dict", "opt_dict", "best_acc1", "subset", "sel_args"} <= set(checkpoint.keys())
             assert 'indices' in checkpoint["subset"].keys()
             start_exp = checkpoint['exp']
             start_epoch = checkpoint["epoch"]
         except:
-            print("=> failed to load the checkpoint, an empty one will be created")
+            print("=> Failed to load the checkpoint, an empty one will be created")
             checkpoint = {}
             start_exp = 0
             start_epoch = 0
@@ -130,7 +131,7 @@ def main():
             #cc,ii,nnn,_,_,_,dst_pretrain,dst_val=datasets.MNIST(args.data_path)
             selection_args = dict(epochs=args.selection_epochs, selection_method='Entropy',
                                   specific_model=None, balance=args.balance, #network=network,optimizer=optimizer, criterion=criterion,
-                                  torchvision_pretrain=False,greedy="LazyGreedy",function="FacilityLocation",
+                                  torchvision_pretrain=False,greedy="LazyGreedy",function="GraphCut",
                                   fraction_pretrain=1.#,dst_pretrain_dict={"channel":cc,"num_classes":nnn,"im_size":ii,"dst_train":dst_pretrain},
                                   #dst_test=dst_test,metric="euclidean"#,dst_val=dst_val
                                     )
@@ -141,9 +142,9 @@ def main():
         ##############
         ##############
         ##############
-        # Augumentation
+        # Augmentation
         from torchvision import transforms
-        dst_train.transform = transforms.Compose([transforms.RandomCrop(args.im_size, padding=4), transforms.RandomHorizontalFlip(), dst_train.transform])
+        dst_train.transform = transforms.Compose([transforms.RandomCrop(args.im_size, padding=4, padding_mode="reflect"), transforms.RandomHorizontalFlip(), dst_train.transform])
         ##############
         ##############
         ##############
@@ -215,7 +216,7 @@ def main():
                     best_prec1 = prec1
                     if args.save_path != "":
                         save_checkpoint({"exp": exp,
-                            "epoch": epoch,
+                            "epoch": epoch + 1,
                             "state_dict": network.state_dict(),
                             "opt_dict": optimizer.state_dict(),
                             "best_acc1": best_prec1,

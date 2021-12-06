@@ -53,7 +53,7 @@ class Similar(EarlyTrain):
 
         # Initialize a matrix to save gradients.
         # (on cpu)
-        gradients = np.zeros([sample_num, self.args.num_classes * (self.embedding_dim + 1)], dtype=np.float32)
+        gradients = []
 
         for i, (input, targets) in enumerate(batch_loader):
             self.model_optimizer.zero_grad()
@@ -64,7 +64,9 @@ class Similar(EarlyTrain):
             with torch.no_grad():
                 bias_parameters_grads = torch.autograd.grad(loss, outputs)[0]
                 weight_parameters_grads = self.model.embedding_recorder.embedding.view(batch_num, 1, self.embedding_dim).repeat(1, self.args.num_classes, 1) * bias_parameters_grads.view(batch_num, self.args.num_classes, 1).repeat(1, 1, self.embedding_dim)
-                gradients[i * self.args.selection_batch:min((i + 1) * self.args.selection_batch, sample_num)] = torch.cat([bias_parameters_grads, weight_parameters_grads.flatten(1)], dim=1).cpu()
+                gradients.append(torch.cat([bias_parameters_grads, weight_parameters_grads.flatten(1)], dim=1).cpu().numpy())
+
+        gradients = np.concatenate(gradients, axis=0)
         return gradients
 
     def finish_run(self):

@@ -131,9 +131,12 @@ class EarlyTrain(CoresetMethod):
             self.model_optimizer = torch.optim.__dict__[self.args.selection_optimizer](self.model.parameters(), lr=self.args.selection_lr,
                                                                          momentum=self.args.selection_momentum,
                                                                          weight_decay=self.args.selection_weight_decay,
-                                                                         nesterov=self.args.selection_nesterov)
+                                                                      nesterov=self.args.selection_nesterov)
 
         self.before_run()
+
+        if self.args.bb!="":
+            self.model.load_state_dict(torch.load(self.args.bb, map_location=self.args.device))
 
         for epoch in range(self.epochs):
             list_of_train_idx = np.random.choice(np.arange(self.n_pretrain if self.if_dst_pretrain else self.n_train),
@@ -143,6 +146,11 @@ class EarlyTrain(CoresetMethod):
             if self.dst_test is not None and self.args.selection_test_interval > 0 and (epoch+1) % self.args.selection_test_interval == 0:
                 self.test(epoch)
             self.after_epoch()
+
+
+        if self.args.aa!="":
+            torch.save(self.model.state_dict(), self.args.aa)
+
         return self.finish_run()
 
     def test(self, epoch):

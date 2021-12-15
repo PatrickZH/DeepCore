@@ -28,6 +28,8 @@ class Glister(EarlyTrain):
         :return:
         '''
 
+        self.model.eval()
+
         if val:
             batch_loader = torch.utils.data.DataLoader(
                 self.dst_val if index is None else torch.utils.data.Subset(self.dst_val, index),
@@ -83,6 +85,8 @@ class Glister(EarlyTrain):
                 self.init_out = torch.cat(self.init_out, dim=0)
                 self.init_emb = torch.cat(self.init_emb, dim=0)
                 self.init_y = torch.cat(self.init_y)
+
+        self.model.train()
 
     def update_val_gradients(self, new_selection, selected_for_train):
 

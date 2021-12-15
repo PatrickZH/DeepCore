@@ -116,6 +116,7 @@ class GradMatch(EarlyTrain):
         return x
 
     def calc_gradient(self, index=None, val=False):
+        self.model.eval()
         if val:
             batch_loader = torch.utils.data.DataLoader(
                 self.dst_val if index is None else torch.utils.data.Subset(self.dst_val, index),
@@ -189,6 +190,9 @@ class GradMatch(EarlyTrain):
     def select(self, **kwargs):
         selection_result = self.run()
         return selection_result
+
+
+
 """
 
     def OrthogonalMP_REG_torch(self, A, b, tol=1E-4, nnz=None, positive=True, lam=0, device="cuda"):

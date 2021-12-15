@@ -88,6 +88,7 @@ class Contrastive(EarlyTrain):
         model = nets.__dict__[self.pretrain_model](channel=self.args.channel, num_classes=self.args.num_classes,
                                                    im_size=(224, 224), record_embedding=True, no_grad=True,
                                                    pretrained=True).to(self.args.device)
+        model.eval()
 
         # Resize dst_train to 224*224
         if self.args.im_size[0] != 224 or self.args.im_size[1] != 224:
@@ -119,6 +120,7 @@ class Contrastive(EarlyTrain):
             return np.argsort(self.metric(embdeddings), axis=1)[:, 1:(self.neighbors + 1)]
 
     def calc_kl(self, knn, index=None):
+        self.model.eval()
         self.model.no_grad = True
         sample_num = self.n_train if index is None else len(index)
         probs = np.zeros([sample_num, self.args.num_classes])

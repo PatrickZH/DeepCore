@@ -39,6 +39,7 @@ class GradientNorm(EarlyTrain):
         # Save gradient of parameters of the model into one tensor
         # If self.all_param==False, only calculate the gradient of the last layer,
         # Otherwise, save gradients of all parameters.
+        self.model.eval()
 
         if self.all_param:
             for index, loss_val in zip(batch_inds, loss):
@@ -57,6 +58,7 @@ class GradientNorm(EarlyTrain):
                                                                                       1) * bias_parameters_grads.view(
                     batch_num, self.args.num_classes, 1).repeat(1, 1, embedding_dim)).view(batch_num, -1)], dim=1),
                                                              dim=1, p=2)
+        self.model.train()
 
     def while_update(self, outputs, loss, targets, epoch, batch_idx, batch_size):
         if batch_idx % self.args.print_freq == 0:

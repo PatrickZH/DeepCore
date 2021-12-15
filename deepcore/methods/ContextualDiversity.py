@@ -20,6 +20,7 @@ class ContextualDiversity(kCenterGreedy):
             return torch.sum(0.5 * aa * torch.log(aa / bb) + 0.5 * bb * torch.log(bb / aa), dim=2)
 
     def construct_matrix(self, index=None):
+        self.model.eval()
         self.model.no_grad = True
         sample_num = self.n_train if index is None else len(index)
         matrix = torch.zeros([sample_num, self.args.num_classes], requires_grad=False).to(self.args.device)

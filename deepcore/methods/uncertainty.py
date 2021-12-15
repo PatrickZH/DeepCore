@@ -53,6 +53,7 @@ class uncertainty(EarlyTrain):
         return {"indices": selection_result}
 
     def rank_uncertainty(self, index=None):
+        self.model.eval()
         with torch.no_grad():
             train_loader = torch.utils.data.DataLoader(
                 self.dst_train if index is None else torch.utils.data.Subset(self.dst_train, index),

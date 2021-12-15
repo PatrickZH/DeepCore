@@ -43,6 +43,7 @@ class Similar(EarlyTrain):
         '''
         Calculate gradients matrix on current network for specified training dataset.
         '''
+        self.model.eval()
 
         batch_loader = torch.utils.data.DataLoader(
                 self.dst_train if index is None else torch.utils.data.Subset(self.dst_train, index),

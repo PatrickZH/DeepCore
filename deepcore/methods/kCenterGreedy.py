@@ -64,7 +64,7 @@ def k_center_greedy(matrix, budget: int, metric, device, random_seed=None, index
 
 class kCenterGreedy(EarlyTrain):
     def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=0,
-                 specific_model=None, balance: bool = False, already_selected=[], metric="euclidean", torchvision_pretrain: bool = True, **kwargs):
+                 specific_model="ResNet18", balance: bool = False, already_selected=[], metric="euclidean", torchvision_pretrain: bool = True, **kwargs):
         super().__init__(dst_train, args, fraction, random_seed, epochs=epochs, specific_model=specific_model, torchvision_pretrain=torchvision_pretrain, **kwargs)
 
         if already_selected.__len__() != 0:
@@ -99,7 +99,8 @@ class kCenterGreedy(EarlyTrain):
             print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f' % (
             epoch, self.epochs, batch_idx + 1, (self.n_pretrain_size // batch_size) + 1, loss.item()))
 
-    def construct_matrix(self, index=None):
+    def old_construct_matrix(self, index=None):
+        self.model.eval()
         self.model.no_grad = True
         with torch.no_grad():
             with self.model.embedding_recorder:
@@ -114,6 +115,23 @@ class kCenterGreedy(EarlyTrain):
 
         self.model.no_grad = False
         return matrix
+
+    def construct_matrix(self, index=None):
+        self.model.eval()
+        self.model.no_grad = True
+        with torch.no_grad():
+            with self.model.embedding_recorder:
+                sample_num = self.n_train if index is None else len(index)
+                matrix = []
+
+                data_loader = torch.utils.data.DataLoader(self.dst_train if index is None else torch.utils.data.Subset(self.dst_train, index), batch_size=self.args.selection_batch)
+
+                for i, (inputs, _) in enumerate(data_loader):
+                    self.model(inputs.to(self.args.device))
+                    matrix.append(self.model.embedding_recorder.embedding)
+
+        self.model.no_grad = False
+        return torch.cat(matrix, dim=0)
 
     def before_run(self):
         self.emb_dim = self.model.get_last_layer().in_features

@@ -13,7 +13,7 @@ class WeightedSubset(torch.utils.data.Subset):
             return self.dataset[[self.indices[i] for i in idx]], self.weights[[i for i in idx]]
         return self.dataset[self.indices[idx]], self.weights[idx]
 
-def train(train_loader, network, criterion, optimizer, scheduler, epoch, args, if_weighted: bool=False):
+def train(train_loader, network, criterion, optimizer, scheduler, epoch, args, rec, if_weighted: bool=False):
     """Train for one epoch on the training set"""
     batch_time = AverageMeter('Time', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
@@ -64,15 +64,16 @@ def train(train_loader, network, criterion, optimizer, scheduler, epoch, args, i
                 epoch, i, len(train_loader), batch_time=batch_time,
                 loss=losses, top1=top1))
 
+    record_train_stats(rec, epoch, losses.avg, top1.avg, optimizer.state_dict()['param_groups'][0]['lr'])
 
-def test(test_loader, network, criterion, args):
-    network.no_grad = True
+def test(test_loader, network, criterion, epoch, args, rec):
     batch_time = AverageMeter('Time', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
     top1 = AverageMeter('Acc@1', ':6.2f')
 
     # switch to evaluate mode
     network.eval()
+    network.no_grad = True
 
     end = time.time()
     for i, (input, target) in enumerate(test_loader):
@@ -80,8 +81,7 @@ def test(test_loader, network, criterion, args):
         input = input.to(args.device)
 
         # compute output
-        with torch.no_grad():
-            output = network(input)
+        output = network(input)
 
         loss = criterion(output, target).mean()
 
@@ -103,7 +103,10 @@ def test(test_loader, network, criterion, args):
                 top1=top1))
 
     print(' * Prec@1 {top1.avg:.3f}'.format(top1=top1))
+
     network.no_grad = False
+
+    record_test_stats(rec, epoch, losses.avg, top1.avg)
     return top1.avg
 
 
@@ -161,3 +164,36 @@ def str_to_bool(v):
 def save_checkpoint(state, path, epoch, prec):
     print("=> Saving checkpoint for epoch %d, with Prec@1 %f." % (epoch, prec))
     torch.save(state, path)
+
+def init_recorder():
+    from types import SimpleNamespace
+    rec = SimpleNamespace()
+    rec.train_step = []
+    rec.train_loss = []
+    rec.train_acc = []
+    rec.lr = []
+    rec.test_step = []
+    rec.test_loss = []
+    rec.test_acc = []
+    rec.ckpts = []
+    return rec
+
+
+def record_train_stats(rec, step, loss, acc, lr):
+    rec.train_step.append(step)
+    rec.train_loss.append(loss)
+    rec.train_acc.append(acc)
+    rec.lr.append(lr)
+    return rec
+
+
+def record_test_stats(rec, step, loss, acc):
+    rec.test_step.append(step)
+    rec.test_loss.append(loss)
+    rec.test_acc.append(acc)
+    return rec
+
+
+def record_ckpt(rec, step):
+    rec.ckpts.append(step)
+    return rec

@@ -47,6 +47,8 @@ class DeepFool(EarlyTrain):
 
     def deep_fool(self, inputs):
         # Here, start running DeepFool algorithm.
+        self.model.eval()
+
         # Initialize a boolean mask indicating if selection has been stopped at corresponding positions.
         sample_size = inputs.shape[0]
         boolean_mask = np.ones(sample_size, dtype=bool)
@@ -60,8 +62,9 @@ class DeepFool(EarlyTrain):
 
         original_shape = inputs.shape[1:]
 
-        with torch.no_grad():
-            first_preds = self.model(cur_inputs).argmax(dim=1)
+        self.model.no_grad = True
+        first_preds = self.model(cur_inputs).argmax(dim=1)
+        self.model.no_grad = False
 
         for _ in range(self.max_iter):
             f_all = self.model(cur_inputs)
@@ -87,8 +90,9 @@ class DeepFool(EarlyTrain):
             cur_inputs += r_i.reshape([r_i.shape[0]] + list(original_shape))
 
             # Re-input the updated sample into the network and get new predictions.
-            with torch.no_grad():
-                preds = self.model(cur_inputs).argmax(dim=1)
+            self.model.no_grad = True
+            preds = self.model(cur_inputs).argmax(dim=1)
+            self.model.no_grad = False
 
             # In DeepFool algorithm, the iteration stops when the updated sample produces a different prediction in the model.
             index_unfinished = (preds == first_preds)

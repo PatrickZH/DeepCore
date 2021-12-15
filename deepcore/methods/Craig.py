@@ -39,6 +39,8 @@ class Craig(EarlyTrain):
                 epoch, self.epochs, batch_idx + 1, (self.n_pretrain_size // batch_size) + 1, loss.item()))
 
     def calc_gradient(self, index=None):
+        self.model.eval()
+
         batch_loader = torch.utils.data.DataLoader(
             self.dst_train if index is None else torch.utils.data.Subset(self.dst_train, index),
             batch_size=self.args.selection_batch)
@@ -61,6 +63,8 @@ class Craig(EarlyTrain):
                 gradients.append(torch.cat([bias_parameters_grads, weight_parameters_grads.flatten(1)], dim=1).cpu().numpy())
 
         gradients = np.concatenate(gradients, axis=0)
+
+        self.model.train()
         return euclidean_dist_pair_np(gradients)
 
     def calc_weights(self, matrix, result):

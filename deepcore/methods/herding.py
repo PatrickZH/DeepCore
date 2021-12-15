@@ -6,7 +6,7 @@ from .methods_utils import euclidean_dist
 
 class herding(EarlyTrain):
     def __init__(self, dst_train, args, fraction=0.5, random_seed=None, epochs=200,
-                 specific_model=None, balance: bool = False, metric="euclidean", **kwargs):
+                 specific_model="ResNet18", balance: bool = False, metric="euclidean", **kwargs):
         super().__init__(dst_train, args, fraction, random_seed, epochs, specific_model, **kwargs)
 
         if metric == "euclidean":
@@ -37,6 +37,7 @@ class herding(EarlyTrain):
                 epoch, self.epochs, batch_idx + 1, (self.n_pretrain_size // batch_size) + 1, loss.item()))
 
     def construct_matrix(self, index=None):
+        self.model.eval()
         self.model.no_grad = True
         with torch.no_grad():
             with self.model.embedding_recorder:

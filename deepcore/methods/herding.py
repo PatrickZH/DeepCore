@@ -79,7 +79,7 @@ class herding(EarlyTrain):
                 select_result[p] = True
         if index is None:
             index = indices
-        return indices[select_result]
+        return index[select_result]
 
     def finish_run(self):
         if self.balance:

@@ -46,8 +46,8 @@ class uncertainty(EarlyTrain):
             selection_result = np.array([], dtype=np.int64)
             for c in range(self.args.num_classes):
                 class_index = np.arange(self.n_train)[self.dst_train.targets == c]
-                selection_result = np.append(selection_result, np.argsort(self.rank_uncertainty(class_index))[::-1][
-                                                               :round(len(class_index) * self.fraction)])
+                selection_result = np.append(selection_result, class_index[np.argsort(self.rank_uncertainty(class_index))[
+                                                               :round(len(class_index) * self.fraction)]])
         else:
             selection_result = np.argsort(self.rank_uncertainty())[::-1][:self.coreset_size]
         return {"indices": selection_result}
@@ -62,7 +62,7 @@ class uncertainty(EarlyTrain):
             scores = np.array([])
             for input, _ in train_loader:
                 if self.selection_method == "LeastConfidence":
-                    scores = np.append(scores, -self.model(input.to(self.args.device)).max(axis=1).values.cpu().numpy())
+                    scores = np.append(scores, self.model(input.to(self.args.device)).max(axis=1).values.cpu().numpy())
                 elif self.selection_method == "Entropy":
                     preds = torch.nn.functional.softmax(self.model(input.to(self.args.device)), dim=1).cpu().numpy()
                     scores = np.append(scores, (np.log(preds + 1e-6) * preds).sum(axis=1))

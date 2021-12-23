@@ -36,11 +36,14 @@ class DeepFool(EarlyTrain):
             lp_wrapper = lp(self.deep_fool)
             lp_wrapper(inputs)
             lp.print_stats()'''
+
+        torch.save(r, "/home/u2018201744/jupyterlab/result/deepfool-r")
+
         if self.balance:
             selection_result = np.array([], dtype=np.int64)
             for c in range(self.args.num_classes):
                 class_index = np.arange(self.n_train)[self.dst_train.targets == c]
-                selection_result = np.append(selection_result, r[class_index].argsort()[:round(len(class_index) * self.fraction)])
+                selection_result = np.append(selection_result, class_index[r[class_index].argsort()[:round(len(class_index) * self.fraction)]])
         else:
             selection_result = r.argsort()[:self.coreset_size]
         return {"indices": selection_result}
@@ -54,19 +57,23 @@ class DeepFool(EarlyTrain):
         boolean_mask = np.ones(sample_size, dtype=bool)
         all_idx = np.arange(sample_size)
 
-        # A vector to store r values.
-        r = np.zeros(sample_size, dtype=np.float32)
+        # A matrix to store total pertubations.
+        r_tot = np.zeros([sample_size,inputs.shape[1] * inputs.shape[2] * inputs.shape[3]])
 
         # Set requires_grad for inputs.
         cur_inputs = inputs.requires_grad_(True).to(self.args.device)
 
         original_shape = inputs.shape[1:]
 
+        # set requires_grad for all parametres in network as False to accelerate autograd
+        for p in self.model.parameters():
+            p.requires_grad_(False)
+
         self.model.no_grad = True
         first_preds = self.model(cur_inputs).argmax(dim=1)
         self.model.no_grad = False
 
-        for _ in range(self.max_iter):
+        for i in range(self.max_iter):
             f_all = self.model(cur_inputs)
 
             w_k = []
@@ -82,10 +89,10 @@ class DeepFool(EarlyTrain):
             l_all[boolean_mask[boolean_mask], first_preds] = np.inf # Set l_k for preds positions to inf, as the argmin for each row will be calculated soon.
 
             l_hat = l_all.argmin(dim=1)
-            r_i = l_all[boolean_mask[boolean_mask], l_hat].unsqueeze(1) * w_k[l_hat, boolean_mask[boolean_mask]]
+            r_i = l_all[boolean_mask[boolean_mask], l_hat].unsqueeze(1) / w_k_norm[l_hat, boolean_mask[boolean_mask]].T.unsqueeze(1) * w_k[l_hat, boolean_mask[boolean_mask]]
 
-            # Update r values.
-            r[boolean_mask] += (r_i * r_i).sum(dim=1).cpu().numpy()
+            # Update r_tot values.
+            r_tot[boolean_mask] += r_i.cpu().numpy()
 
             cur_inputs += r_i.reshape([r_i.shape[0]] + list(original_shape))
 
@@ -103,7 +110,7 @@ class DeepFool(EarlyTrain):
             first_preds = first_preds[index_unfinished]
             boolean_mask[all_idx[boolean_mask][~index_unfinished.cpu().numpy()]] = False
 
-        return r
+        return (r_tot * r_tot).sum(axis=1)
 
     def select(self, **kwargs):
         selection_result = self.run()

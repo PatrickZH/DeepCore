@@ -1,5 +1,6 @@
 import time, torch
 from argparse import ArgumentTypeError
+from prefetch_generator import BackgroundGenerator
 
 
 class WeightedSubset(torch.utils.data.Subset):
@@ -8,12 +9,14 @@ class WeightedSubset(torch.utils.data.Subset):
         assert len(indices) == len(weights)
         self.indices = indices
         self.weights = weights
+
     def __getitem__(self, idx):
         if isinstance(idx, list):
             return self.dataset[[self.indices[i] for i in idx]], self.weights[[i for i in idx]]
         return self.dataset[self.indices[idx]], self.weights[idx]
 
-def train(train_loader, network, criterion, optimizer, scheduler, epoch, args, rec, if_weighted: bool=False):
+
+def train(train_loader, network, criterion, optimizer, scheduler, epoch, args, rec, if_weighted: bool = False):
     """Train for one epoch on the training set"""
     batch_time = AverageMeter('Time', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
@@ -29,7 +32,7 @@ def train(train_loader, network, criterion, optimizer, scheduler, epoch, args, r
             target = contents[0][1].to(args.device)
             input = contents[0][0].to(args.device)
 
-            # compute output
+            # Compute output
             output = network(input)
             weights = contents[1].to(args.device).requires_grad_(False)
             loss = torch.sum(criterion(output, target) * weights) / torch.sum(weights)
@@ -37,22 +40,21 @@ def train(train_loader, network, criterion, optimizer, scheduler, epoch, args, r
             target = contents[1].to(args.device)
             input = contents[0].to(args.device)
 
-            # compute output
+            # Compute output
             output = network(input)
             loss = criterion(output, target).mean()
 
-        # measure accuracy and record loss
+        # Measure accuracy and record loss
         prec1 = accuracy(output.data, target, topk=(1,))[0]
         losses.update(loss.data.item(), input.size(0))
         top1.update(prec1.item(), input.size(0))
 
-        # compute gradient and do SGD step
-        #optimizer.zero_grad()
+        # Compute gradient and do SGD step
         loss.backward()
         optimizer.step()
         scheduler.step()
 
-        # measure elapsed time
+        # Measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
 
@@ -66,12 +68,13 @@ def train(train_loader, network, criterion, optimizer, scheduler, epoch, args, r
 
     record_train_stats(rec, epoch, losses.avg, top1.avg, optimizer.state_dict()['param_groups'][0]['lr'])
 
+
 def test(test_loader, network, criterion, epoch, args, rec):
     batch_time = AverageMeter('Time', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
     top1 = AverageMeter('Acc@1', ':6.2f')
 
-    # switch to evaluate mode
+    # Switch to evaluate mode
     network.eval()
     network.no_grad = True
 
@@ -80,17 +83,18 @@ def test(test_loader, network, criterion, epoch, args, rec):
         target = target.to(args.device)
         input = input.to(args.device)
 
-        # compute output
-        output = network(input)
+        # Compute output
+        with torch.no_grad():
+            output = network(input)
 
-        loss = criterion(output, target).mean()
+            loss = criterion(output, target).mean()
 
-        # measure accuracy and record loss
+        # Measure accuracy and record loss
         prec1 = accuracy(output.data, target, topk=(1,))[0]
         losses.update(loss.data.item(), input.size(0))
         top1.update(prec1.item(), input.size(0))
 
-        # measure elapsed time
+        # Measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
 
@@ -151,7 +155,9 @@ def accuracy(output, target, topk=(1,)):
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
+
 def str_to_bool(v):
+    # Handle boolean type in arguments.
     if isinstance(v, bool):
         return v
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
@@ -161,9 +167,11 @@ def str_to_bool(v):
     else:
         raise ArgumentTypeError('Boolean value expected.')
 
+
 def save_checkpoint(state, path, epoch, prec):
     print("=> Saving checkpoint for epoch %d, with Prec@1 %f." % (epoch, prec))
     torch.save(state, path)
+
 
 def init_recorder():
     from types import SimpleNamespace
@@ -197,3 +205,8 @@ def record_test_stats(rec, step, loss, acc):
 def record_ckpt(rec, step):
     rec.ckpts.append(step)
     return rec
+
+
+class DataLoaderX(torch.utils.data.DataLoader):
+    def __iter__(self):
+        return BackgroundGenerator(super().__iter__())

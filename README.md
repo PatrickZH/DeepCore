@@ -19,11 +19,59 @@ Selecting with Glister and training on the coreset with fraction 0.1.
 CUDA_VISIBLE_DEVICES=0 python -u main.py --fraction 0.1 --dataset CIFAR10 --data_path ~/datasets --num_exp 5 --workers 10 --optimizer SGD -se 10 --selection Glister --model InceptionV3 --lr 0.1 -sp ./result --batch 128
 ```
 
-Resuming interuppted training with argument ```--resume```
+Resuming interuppted training with argument ```--resume```.
 ```sh
+CUDA_VISIBLE_DEVICES=0 python -u main.py --fraction 0.1 --dataset CIFAR10 --data_path ~/datasets --num_exp 5 --workers 10 --optimizer SGD -se 10 --selection Glister --model InceptionV3 --lr 0.1 -sp ./result --batch 128 --resume "CIFAR10_InceptionV3_Glister_exp0_epoch200_2022-02-05 21:31:53.762903_0.1_unknown.ckpt"
+```
 
+Batch size can be seperatedly assigned for both selection and training.
+```sh
+CUDA_VISIBLE_DEVICES=0 python -u main.py --fraction 0.5 --dataset ImageNet --data_path ~/datasets --num_exp 5 --workers 10 --optimizer SGD -se 10 --selection Cal --model MobileNetV3Large --lr 0.1 -sp ./result -tb 256 -sb 128
+```
+
+Argument ```--uncertainty``` to choose uncertainty scores.
+```sh
+CUDA_VISIBLE_DEVICES=0 python -u main.py --fraction 0.1 --dataset CIFAR10 --data_path ~/datasets --num_exp 5 --workers 10 --optimizer SGD -se 10 --selection Uncertainty --model ResNet18 --lr 0.1 -sp ./result --batch 128 --uncertainty Entropy
+```
+
+
+Argument ```--submodular``` to choose uncertainty scores.
+```sh
+CUDA_VISIBLE_DEVICES=0 python -u main.py --fraction 0.1 --dataset CIFAR10 --data_path ~/datasets --num_exp 5 --workers 10 --optimizer SGD -se 10 --selection Submodular --model ResNet18 --lr 0.1 -sp ./result --batch 128 --submodular GraphCut
+```
+
+### Extend
+
+DeepCore is highly modular and scalable. It allows to add new architectures, datasets and selection methods easily, to help coreset methods to be evaluated in a richer set of scenarios, and also to facilitate new methods for comparison. Here is an example for datasets. To add a new dataset, you need implement a function whose input is the data path and outputs are  
+
+
+```python
+from torchvision import datasets, transforms
+import numpy as np
+
+
+def MNIST(data_path, permuted=False, permutation_seed=None):
+    channel = 1
+    im_size = (28, 28)
+    num_classes = 10
+    mean = [0.1307]
+    std = [0.3081]
+    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+    if permuted:
+        np.random.seed(permutation_seed)
+        pixel_permutation = np.random.permutation(28 * 28)
+        transform = transforms.Compose(
+            [transform, transforms.Lambda(lambda x: x.view(-1, 1)[pixel_permutation].view(1, 28, 28))])
+
+    dst_train = datasets.MNIST(data_path, train=True, download=True, transform=transform)
+    dst_test = datasets.MNIST(data_path, train=False, download=True, transform=transform)
+    class_names = [str(c) for c in range(num_classes)]
+    return channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test
 ```
 
 
 
-### Extend
+
+
+
+

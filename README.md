@@ -1,4 +1,4 @@
-# DeepCore: A Comprehensive Library for Coreset Selection in Deep Learning
+# DeepCore: A Comprehensive Library for Coreset Selection in Deep Learning [PDF](https://arxiv.org/pdf/2204.08499.pdf)
 
 
 ### Introduction

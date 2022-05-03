@@ -33,7 +33,7 @@ class Forgetting(EarlyTrain):
             _, predicted = torch.max(outputs.data, 1)
 
             cur_acc = (predicted == targets).clone().detach().requires_grad_(False).type(torch.float32)
-            self.forgetting_events[batch_inds][(self.last_acc[batch_inds]-cur_acc)>0.01]+=1.
+            self.forgetting_events[torch.tensor(batch_inds)[(self.last_acc[batch_inds]-cur_acc)>0.01]]+=1.
             self.last_acc[batch_inds] = cur_acc
 
     def while_update(self, outputs, loss, targets, epoch, batch_idx, batch_size):

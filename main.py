@@ -80,6 +80,7 @@ def main():
 
     # Algorithm
     parser.add_argument('--submodular', default="GraphCut", help="specifiy submodular function to use")
+    parser.add_argument('--submodular_greedy', default="LazyGreedy", help="specifiy greedy algorithm for submodular optimization")
     parser.add_argument('--uncertainty', default="Entropy", help="specifiy uncertanty score to use")
 
     # Checkpoint and resumption
@@ -154,7 +155,7 @@ def main():
             selection_args = dict(epochs=args.selection_epochs,
                                   selection_method=args.uncertainty,
                                   balance=args.balance,
-                                  greedy="LazyGreedy",
+                                  greedy=args.submodular_greedy,
                                   function=args.submodular
                                   )
             method = methods.__dict__[args.selection](dst_train, args, args.fraction, args.seed, **selection_args)

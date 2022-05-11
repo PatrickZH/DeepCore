@@ -1,0 +1,6 @@
+numpy==1.21.2
+prefetch_generator==1.0.1
+requests==2.25.1
+scipy==1.5.3
+torch==1.10.1
+torchvision==0.11.2

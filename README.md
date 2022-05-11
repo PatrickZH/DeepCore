@@ -35,9 +35,9 @@ CUDA_VISIBLE_DEVICES=0 python -u main.py --fraction 0.1 --dataset CIFAR10 --data
 ```
 
 
-Argument ```--submodular``` to choose uncertainty scores.
+Argument ```--submodular``` to choose submodular function, e.g. ```GraphCut```, ```FacilityLocation``` or ```LogDeterminant```. You may also specify the type of greedy algorithm to use when maximizing functions with argument ```--submodular_greedy```, for example ```NaiveGreedy```, ```LazyGreedy```, ```StochasticGreedy```, etc.
 ```sh
-CUDA_VISIBLE_DEVICES=0 python -u main.py --fraction 0.1 --dataset CIFAR10 --data_path ~/datasets --num_exp 5 --workers 10 --optimizer SGD -se 10 --selection Submodular --model ResNet18 --lr 0.1 -sp ./result --batch 128 --submodular GraphCut
+CUDA_VISIBLE_DEVICES=0 python -u main.py --fraction 0.1 --dataset CIFAR10 --data_path ~/datasets --num_exp 5 --workers 10 --optimizer SGD -se 10 --selection Submodular --model ResNet18 --lr 0.1 -sp ./result --batch 128 --submodular GraphCut --submodular_greedy NaiveGreedy
 ```
 
 ### Extend

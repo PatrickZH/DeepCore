@@ -1,4 +1,5 @@
 from torchvision import datasets, transforms
+from torch import tensor, long
 
 
 def SVHN(data_path):
@@ -11,4 +12,8 @@ def SVHN(data_path):
     dst_train = datasets.SVHN(data_path, split='train', download=True, transform=transform)
     dst_test = datasets.SVHN(data_path, split='test', download=True, transform=transform)
     class_names = [str(c) for c in range(num_classes)]
+    dst_train.classes = list(class_names)
+    dst_test.classes = list(class_names)
+    dst_train.targets = tensor(dst_train.labels, dtype=long)
+    dst_test.targets = tensor(dst_test.labels, dtype=long)
     return channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test

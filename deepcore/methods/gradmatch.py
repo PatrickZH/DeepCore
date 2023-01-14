@@ -142,7 +142,7 @@ class GradMatch(EarlyTrain):
         for i, (input, targets) in enumerate(batch_loader):
             self.model_optimizer.zero_grad()
             outputs = self.model(input.to(self.args.device)).requires_grad_(True)
-            loss = self.criterion(torch.nn.functional.softmax(outputs, dim=1), targets.to(self.args.device)).sum()
+            loss = self.criterion(outputs, targets.to(self.args.device)).sum()
             batch_num = targets.shape[0]
             with torch.no_grad():
                 bias_parameters_grads = torch.autograd.grad(loss, outputs, retain_graph=True)[0].cpu()

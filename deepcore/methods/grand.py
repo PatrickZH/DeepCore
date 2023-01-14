@@ -38,7 +38,7 @@ class GraNd(EarlyTrain):
         for i, (input, targets) in enumerate(batch_loader):
             self.model_optimizer.zero_grad()
             outputs = self.model(input.to(self.args.device))
-            loss = self.criterion(torch.nn.functional.softmax(outputs.requires_grad_(True), dim=1),
+            loss = self.criterion(outputs.requires_grad_(True),
                                   targets.to(self.args.device)).sum()
             batch_num = targets.shape[0]
             with torch.no_grad():
@@ -60,7 +60,7 @@ class GraNd(EarlyTrain):
 
         for self.cur_repeat in range(self.repeat):
             self.run()
-            self.random_seed = int(time.time() * 1000) % 100000
+            self.random_seed = self.random_seed + 5
 
         self.norm_mean = torch.mean(self.norm_matrix, dim=1).cpu().detach().numpy()
         if not self.balance:

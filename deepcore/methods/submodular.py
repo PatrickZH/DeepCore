@@ -62,7 +62,7 @@ class Submodular(EarlyTrain):
         for i, (input, targets) in enumerate(batch_loader):
             self.model_optimizer.zero_grad()
             outputs = self.model(input.to(self.args.device))
-            loss = self.criterion(torch.nn.functional.softmax(outputs.requires_grad_(True), dim=1),
+            loss = self.criterion(outputs.requires_grad_(True),
                                   targets.to(self.args.device)).sum()
             batch_num = targets.shape[0]
             with torch.no_grad():

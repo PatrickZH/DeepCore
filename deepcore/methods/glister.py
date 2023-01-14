@@ -46,7 +46,7 @@ class Glister(EarlyTrain):
         for i, (input, targets) in enumerate(batch_loader):
             self.model_optimizer.zero_grad()
             outputs = self.model(input.to(self.args.device))
-            loss = self.criterion(torch.nn.functional.softmax(outputs.requires_grad_(True), dim=1), targets.to(self.args.device)).sum()
+            loss = self.criterion(outputs.requires_grad_(True), targets.to(self.args.device)).sum()
             batch_num = targets.shape[0]
             with torch.no_grad():
                 bias_parameters_grads = torch.autograd.grad(loss, outputs)[0]
@@ -93,7 +93,7 @@ class Glister(EarlyTrain):
             batch_indx = np.arange(sample_num)[i * self.args.selection_batch:min((i + 1) * self.args.selection_batch,
                                                                                  sample_num)]
             new_out_puts_batch = new_outputs[batch_indx].clone().detach().requires_grad_(True)
-            loss = self.criterion(torch.nn.functional.softmax(new_out_puts_batch, dim=1), self.init_y[batch_indx])
+            loss = self.criterion(new_out_puts_batch, self.init_y[batch_indx])
             batch_num = len(batch_indx)
             bias_parameters_grads = torch.autograd.grad(loss.sum(), new_out_puts_batch, retain_graph=True)[0]
 
